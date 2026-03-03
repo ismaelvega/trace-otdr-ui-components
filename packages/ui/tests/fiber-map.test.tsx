@@ -25,20 +25,42 @@ const events = [
 ];
 
 describe("FiberMap", () => {
-  it("renders event labels and emits clicks", () => {
+  it("shows event number only on hover and emits clicks", () => {
     const onEventClick = vi.fn();
-    const { container } = render(<FiberMap events={events} onEventClick={onEventClick} />);
+    render(<FiberMap events={events} onEventClick={onEventClick} />);
 
+    expect(screen.queryByText("#1")).toBeNull();
+    const marker = screen.getByLabelText("Event 1");
+    fireEvent.mouseEnter(marker);
     expect(screen.getByText("#1")).toBeTruthy();
-    expect(screen.getByText("#2")).toBeTruthy();
+    fireEvent.mouseLeave(marker);
+    expect(screen.queryByText("#1")).toBeNull();
 
-    const groups = container.querySelectorAll("g");
-    const firstGroup = groups[0];
-    if (!firstGroup) {
-      throw new Error("Expected at least one map marker group");
-    }
-    fireEvent.click(firstGroup);
+    fireEvent.click(marker);
 
     expect(onEventClick).toHaveBeenCalled();
+  });
+
+  it("supports wheel zoom in and out", () => {
+    render(<FiberMap events={events} />);
+
+    const fiberMap = screen.getByLabelText("Fiber map");
+    const beforeMarker = screen.getByLabelText("Event 1");
+    const beforeCircle = beforeMarker.querySelector("circle");
+    const beforeX = Number.parseFloat(beforeCircle?.getAttribute("cx") ?? "0");
+
+    fireEvent.wheel(fiberMap, { deltaY: -120 });
+
+    const zoomedMarker = screen.getByLabelText("Event 1");
+    const zoomedCircle = zoomedMarker.querySelector("circle");
+    const zoomedX = Number.parseFloat(zoomedCircle?.getAttribute("cx") ?? "0");
+    expect(zoomedX).not.toBe(beforeX);
+
+    fireEvent.wheel(fiberMap, { deltaY: 120 });
+
+    const resetMarker = screen.getByLabelText("Event 1");
+    const resetCircle = resetMarker.querySelector("circle");
+    const resetX = Number.parseFloat(resetCircle?.getAttribute("cx") ?? "0");
+    expect(resetX).toBeCloseTo(beforeX, 2);
   });
 });

@@ -3,14 +3,17 @@
   border-radius: var(--otdr-radius-lg, 14px);
   background: var(--otdr-panel, #ffffff);
   padding: var(--otdr-panel-padding, 12px);
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   box-shadow: var(--otdr-shadow-1, 0 1px 2px rgba(15, 42, 67, 0.08));
   min-width: 0;
 }
 
+.horizontal {
+  scrollbar-width: thin;
+}
+
 .svg {
-  width: 100%;
-  min-width: 680px;
   height: 180px;
   display: block;
 }
@@ -24,11 +27,6 @@
 .path {
   stroke: var(--otdr-axis-color, #334155);
   stroke-width: 2;
-}
-
-.eventLabel {
-  fill: var(--otdr-marker-label, #334e68);
-  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .event {
@@ -47,17 +45,13 @@
 .marker {
   stroke: color-mix(in srgb, var(--otdr-panel, #ffffff) 45%, transparent);
   stroke-width: 1.5;
+  transform-box: fill-box;
+  transform-origin: center;
   transition: transform 120ms ease-in-out, stroke-width 120ms ease-in-out, filter 120ms ease-in-out;
 }
 
 .event:hover .marker {
   transform: scale(1.06);
-}
-
-.labelConnector {
-  stroke: var(--otdr-marker-stem, rgba(49, 82, 116, 0.36));
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
 }
 
 .reflection { fill: var(--otdr-marker-reflection, #c3342f); }
@@ -79,13 +73,13 @@
   filter: drop-shadow(0 0 3px var(--otdr-marker-hover-halo, rgba(8, 145, 178, 0.24)));
 }
 
-.cluster rect {
-  fill: color-mix(in srgb, var(--otdr-section-header-bg, #eef4fb) 85%, transparent);
+.hoverTag rect {
+  fill: color-mix(in srgb, var(--otdr-panel, #ffffff) 88%, transparent);
   stroke: var(--otdr-border-strong, #95aec8);
 }
 
-.clusterText {
-  fill: var(--otdr-marker-label-muted, #6f859e);
+.hoverTagText {
+  fill: var(--otdr-marker-label, #334e68);
   font-size: var(--otdr-font-size-xxs, 11px);
   font-weight: var(--otdr-weight-semibold, 600);
   font-variant-numeric: tabular-nums lining-nums;
@@ -93,23 +87,20 @@
 }
 
 .vertical .svg {
+  width: 100%;
   min-width: 0;
   height: 320px;
 }
 
 @media (max-width: 768px) {
-  .svg {
+  .horizontal .svg {
     min-width: 620px;
     height: 168px;
-  }
-
-  .eventLabel {
-    font-size: var(--otdr-font-size-xxs, 11px);
   }
 }
 
 @media (max-width: 480px) {
-  .svg {
+  .horizontal .svg {
     min-width: 560px;
   }
 }

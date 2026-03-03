@@ -3,6 +3,15 @@
   "version": "1.1.0",
   "description": "UI components and utilities for OTDR SOR data",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ismaelvega/trace-otdr-ui-components.git",
+    "directory": "packages/ui"
+  },
+  "bugs": {
+    "url": "https://github.com/ismaelvega/trace-otdr-ui-components/issues"
+  },
+  "homepage": "https://github.com/ismaelvega/trace-otdr-ui-components/tree/master/packages/ui#readme",
   "keywords": [
     "otdr",
     "sor",

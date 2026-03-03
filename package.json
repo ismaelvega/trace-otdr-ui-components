@@ -10,7 +10,9 @@
     "build": "npm --prefix packages/ui run build && npm --prefix apps/demo run build",
     "test": "npm --prefix packages/ui run test",
     "lint": "npm --prefix packages/ui run lint",
-    "typecheck": "npm --prefix packages/ui run typecheck"
+    "typecheck": "npm --prefix packages/ui run typecheck",
+    "release:ui:check": "npm --prefix packages/ui run verify && npm --prefix packages/ui run build && npm --workspace packages/ui publish --access public --dry-run",
+    "release:ui:publish": "npm --prefix packages/ui run verify && npm --prefix packages/ui run build && npm --workspace packages/ui publish --access public"
   },
   "devDependencies": {
     "jsdom": "^28.1.0"

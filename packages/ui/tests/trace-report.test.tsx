@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TraceReport } from "../src/components/TraceReport/TraceReport.js";
@@ -47,5 +47,26 @@ describe("TraceReport", () => {
     expect(screen.getByText("Fiber Info")).toBeTruthy();
     expect(screen.getByText("Equipment")).toBeTruthy();
     expect(screen.getByText("Event Table")).toBeTruthy();
+  });
+
+  it("sorts report event rows by distance", () => {
+    const result = createMockSorData();
+    render(<TraceReport result={result} companyName="Acme Fiber" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Distance" }));
+    fireEvent.click(screen.getByRole("button", { name: "Distance" }));
+
+    const eventHeading = screen.getByRole("heading", { name: "Event Table" });
+    const eventTable = eventHeading.nextElementSibling as HTMLTableElement | null;
+    if (!eventTable) {
+      throw new Error("Expected event table");
+    }
+
+    const rows = within(eventTable).getAllByRole("row");
+    const firstDataRow = rows[1];
+    if (!firstDataRow) {
+      throw new Error("Expected first report event row");
+    }
+    expect(firstDataRow.textContent ?? "").toContain("71.814");
   });
 });

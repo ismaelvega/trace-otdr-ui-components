@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TraceChart } from "../src/components/TraceChart.js";
@@ -63,10 +63,24 @@ function createCanvasContextMock(): CanvasContextMock {
   };
 }
 
+class ClipboardItemMock {
+  readonly data: Record<string, Blob>;
+
+  constructor(data: Record<string, Blob>) {
+    this.data = data;
+  }
+}
+
 describe("TraceChart", () => {
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
   const originalSetPointerCapture = HTMLCanvasElement.prototype.setPointerCapture;
   const originalReleasePointerCapture = HTMLCanvasElement.prototype.releasePointerCapture;
+  const originalToBlob = HTMLCanvasElement.prototype.toBlob;
+  const originalClipboard = navigator.clipboard;
+  const originalClipboardItem = globalThis.ClipboardItem;
+  const originalCreateObjectUrl = URL.createObjectURL;
+  const originalRevokeObjectUrl = URL.revokeObjectURL;
+  const originalAnchorClick = HTMLAnchorElement.prototype.click;
 
   beforeEach(() => {
     HTMLCanvasElement.prototype.getContext = vi
@@ -74,12 +88,48 @@ describe("TraceChart", () => {
       .mockName("getContext") as unknown as typeof HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.setPointerCapture = vi.fn();
     HTMLCanvasElement.prototype.releasePointerCapture = vi.fn();
+    HTMLCanvasElement.prototype.toBlob = vi
+      .fn((callback: BlobCallback, type?: string) => {
+        callback(new Blob(["trace-chart"], { type: type ?? "image/png" }));
+      })
+      .mockName("toBlob") as unknown as typeof HTMLCanvasElement.prototype.toBlob;
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        write: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    Object.defineProperty(globalThis, "ClipboardItem", {
+      configurable: true,
+      writable: true,
+      value: ClipboardItemMock,
+    });
+
+    URL.createObjectURL = vi.fn(() => "blob:trace-chart");
+    URL.revokeObjectURL = vi.fn();
+    HTMLAnchorElement.prototype.click = vi.fn();
   });
 
   afterEach(() => {
     HTMLCanvasElement.prototype.getContext = originalGetContext;
     HTMLCanvasElement.prototype.setPointerCapture = originalSetPointerCapture;
     HTMLCanvasElement.prototype.releasePointerCapture = originalReleasePointerCapture;
+    HTMLCanvasElement.prototype.toBlob = originalToBlob;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: originalClipboard,
+    });
+    Object.defineProperty(globalThis, "ClipboardItem", {
+      configurable: true,
+      writable: true,
+      value: originalClipboardItem,
+    });
+    URL.createObjectURL = originalCreateObjectUrl;
+    URL.revokeObjectURL = originalRevokeObjectUrl;
+    HTMLAnchorElement.prototype.click = originalAnchorClick;
+    vi.restoreAllMocks();
   });
 
   it("mounts a canvas without console errors and handles keyboard controls", () => {
@@ -148,5 +198,51 @@ describe("TraceChart", () => {
     const last = calls[calls.length - 1]?.[0] as { a: unknown; b: unknown } | undefined;
     expect(last?.a).not.toBeNull();
     expect(last?.b).not.toBeNull();
+  });
+
+  it("copies chart image to clipboard as PNG", async () => {
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        write: clipboardWrite,
+      },
+    });
+
+    const trace = Array.from({ length: 32 }, (_, index) => ({
+      distance: index * 0.15,
+      power: 35 - index * 0.08,
+    }));
+
+    render(<TraceChart trace={trace} events={[]} width={640} height={280} showExportActions />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Chart" }));
+
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledTimes(1));
+    const payload = clipboardWrite.mock.calls[0]?.[0] as unknown[];
+    expect(Array.isArray(payload)).toBe(true);
+    expect(payload).toHaveLength(1);
+  });
+
+  it("downloads chart image as PNG", async () => {
+    const appendSpy = vi.spyOn(document.body, "append");
+    const trace = Array.from({ length: 24 }, (_, index) => ({
+      distance: index * 0.2,
+      power: 33 - index * 0.1,
+    }));
+
+    render(
+      <TraceChart trace={trace} events={[]} width={640} height={280} showExportActions exportFileBaseName="demo-trace-chart" />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Download PNG" }));
+
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
+    const appended = appendSpy.mock.calls.at(-1)?.[0];
+    expect(appended).toBeInstanceOf(HTMLAnchorElement);
+    const anchor = appended as HTMLAnchorElement;
+    expect(anchor.download).toMatch(/^demo-trace-chart-\d{8}-\d{6}\.png$/u);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:trace-chart");
   });
 });

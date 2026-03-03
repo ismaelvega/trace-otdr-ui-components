@@ -7,6 +7,45 @@
   min-width: 0;
 }
 
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--otdr-space-2, 8px);
+  margin: 0 0 var(--otdr-space-2, 8px);
+}
+
+.toolbarLabel {
+  font-size: var(--otdr-font-size-xs, 12px);
+  color: var(--otdr-text-muted, #475569);
+  font-weight: var(--otdr-weight-semibold, 600);
+}
+
+.sortButton {
+  appearance: none;
+  border: 1px solid var(--otdr-border-strong, #95aec8);
+  border-radius: var(--otdr-radius-sm, 6px);
+  background: var(--otdr-panel-subtle, #f7fbff);
+  color: var(--otdr-text-emphasis, #0f2942);
+  font: inherit;
+  font-size: var(--otdr-font-size-xs, 12px);
+  font-weight: var(--otdr-weight-semibold, 600);
+  line-height: 1;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
+}
+
+.sortButton:hover {
+  background: var(--otdr-interactive-bg-hover, #e9f3ff);
+}
+
+.sortButton:focus-visible {
+  outline: 2px solid var(--otdr-interactive-focus-ring, #2563eb);
+  outline-offset: 1px;
+  box-shadow: var(--otdr-interactive-focus-shadow, 0 0 0 3px rgba(37, 99, 235, 0.28));
+}
+
 .scaleHint {
   margin: 0 0 var(--otdr-space-2, 8px);
   font-size: var(--otdr-font-size-xs, 12px);
@@ -194,7 +233,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .row,
-  .bar {
+  .bar,
+  .sortButton {
     transition: none;
   }
 }

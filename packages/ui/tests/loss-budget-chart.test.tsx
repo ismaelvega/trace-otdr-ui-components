@@ -13,7 +13,7 @@ describe("LossBudgetChart", () => {
 
     render(<LossBudgetChart events={data.keyEvents.events} onBarClick={onBarClick} />);
 
-    const buttons = screen.getAllByRole("button");
+    const buttons = screen.getAllByRole("button", { name: /Event \d+/u });
     expect(buttons.length).toBeGreaterThan(0);
     const firstButton = buttons[0];
     if (!firstButton) {
@@ -24,10 +24,28 @@ describe("LossBudgetChart", () => {
     expect(onBarClick).toHaveBeenCalled();
   });
 
+  it("supports sorting loss bars by splice loss", () => {
+    const data = createMockSorData();
+
+    render(<LossBudgetChart events={data.keyEvents.events} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Splice/u }));
+    fireEvent.click(screen.getByRole("button", { name: /Splice/u }));
+
+    const barButtons = screen.getAllByRole("button", { name: /Event \d+/u });
+    const firstBar = barButtons[0];
+    if (!firstBar) {
+      throw new Error("Expected bars to be rendered");
+    }
+    expect(firstBar.getAttribute("aria-label") ?? "").toContain("Event 1");
+  });
+
   it("supports vertical mode bar sizing", () => {
     const data = createMockSorData();
     const { container } = render(<LossBudgetChart events={data.keyEvents.events} vertical />);
-    const bar = container.querySelector('[class*="bar"]');
-    expect(bar?.getAttribute("style")).toContain("height:");
+    const hasHeightStyle = Array.from(container.querySelectorAll("span")).some((node) =>
+      (node.getAttribute("style") ?? "").includes("height:"),
+    );
+    expect(hasHeightStyle).toBe(true);
   });
 });

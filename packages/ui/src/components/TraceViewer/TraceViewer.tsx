@@ -108,6 +108,7 @@ function TraceViewerInner({
     () => computeCursorMeasurement(normalized.trace, normalized.keyEvents.events, measurementCursors),
     [measurementCursors, normalized.keyEvents.events, normalized.trace],
   );
+  const exportBaseName = normalized.filename ? normalized.filename.replace(/\.[^.]+$/u, "") : "otdr-trace";
 
   useEffect(() => {
     onExposeApi({
@@ -148,6 +149,8 @@ function TraceViewerInner({
             xUnit={xUnit}
             selectedEvent={selectedIndex}
             measurementCursors={measurementCursors}
+            showExportActions
+            exportFileBaseName={`${exportBaseName}-chart`}
             onEventClick={(_, index) => select(index)}
             onMeasurementCursorsChange={setMeasurementCursors}
           />
@@ -188,6 +191,8 @@ function TraceViewerInner({
             xUnit={xUnit}
             thresholds={thresholds?.event}
             selectedEvent={selectedIndex}
+            showExportActions
+            exportFileBaseName={`${exportBaseName}-events`}
             onEventSelect={(_, index) => select(index)}
           />
         </div>

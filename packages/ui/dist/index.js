@@ -18,6 +18,7 @@ import {
   TraceViewer,
   assessEvent,
   assessSummary,
+  buildTimestampedFilename,
   clampViewport,
   classifyEvent,
   computeCursorMeasurement,
@@ -29,6 +30,8 @@ import {
   createCanvas,
   createRenderScheduler,
   dataToPixel,
+  downloadBlob,
+  downloadTextFile,
   drawCrosshair,
   drawEventMarkers,
   drawMeasurementCursors,
@@ -54,10 +57,12 @@ import {
   pixelToData,
   renderFrame,
   resolveCrosshairState,
+  serializeEventsAsCsv,
+  serializeEventsAsTsv,
   toCursorPoints,
   useEventSelection,
   zoomViewportAtPixel
-} from "./chunk-KAUXE3SD.js";
+} from "./chunk-7DEMIZ3T.js";
 
 // src/utils/loss-budget.ts
 function parseNumeric(input) {
@@ -244,6 +249,23 @@ var TraceReport_default = {};
 
 // src/components/TraceReport/TraceReport.tsx
 import { jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
+function parseNumber(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function cycleSortState(current, key) {
+  if (!current || current.key !== key) {
+    return { key, direction: "asc" };
+  }
+  if (current.direction === "asc") {
+    return { key, direction: "desc" };
+  }
+  return null;
+}
+function ariaSortValue(sortState, key) {
+  if (!sortState || sortState.key !== key) return "none";
+  return sortState.direction === "asc" ? "ascending" : "descending";
+}
 function TraceReport({
   result,
   companyName = "Fiber Services",
@@ -253,6 +275,7 @@ function TraceReport({
 }) {
   const normalized = useMemo2(() => normalizeSorResult(result), [result]);
   const [traceUrl, setTraceUrl] = useState2(null);
+  const [eventSortState, setEventSortState] = useState2(null);
   useEffect(() => {
     let active = true;
     void traceToImageURL(normalized.trace).then((url) => {
@@ -263,6 +286,28 @@ function TraceReport({
       active = false;
     };
   }, [normalized.trace]);
+  const sortedEvents = useMemo2(() => {
+    const prepared = normalized.keyEvents.events.map((event, index) => ({
+      index,
+      event,
+      distance: parseNumber(event.distance),
+      type: event.type,
+      spliceLoss: parseNumber(event.spliceLoss),
+      reflLoss: parseNumber(event.reflLoss)
+    }));
+    if (!eventSortState) return prepared;
+    const { key, direction } = eventSortState;
+    const multiplier = direction === "asc" ? 1 : -1;
+    return prepared.slice().sort((a, b) => {
+      if (key === "type") {
+        return a.type.localeCompare(b.type) * multiplier;
+      }
+      if (key === "index") {
+        return (a.index - b.index) * multiplier;
+      }
+      return (a[key] - b[key]) * multiplier;
+    });
+  }, [eventSortState, normalized.keyEvents.events]);
   return /* @__PURE__ */ jsxs2("article", { className: TraceReport_default.root, children: [
     /* @__PURE__ */ jsxs2("header", { className: TraceReport_default.header, children: [
       /* @__PURE__ */ jsxs2("div", { children: [
@@ -305,19 +350,19 @@ function TraceReport({
       /* @__PURE__ */ jsx2("h2", { children: "Event Table" }),
       /* @__PURE__ */ jsxs2("table", { className: TraceReport_default.table, children: [
         /* @__PURE__ */ jsx2("thead", { children: /* @__PURE__ */ jsxs2("tr", { children: [
-          /* @__PURE__ */ jsx2("th", { children: "#" }),
-          /* @__PURE__ */ jsx2("th", { children: "Distance" }),
-          /* @__PURE__ */ jsx2("th", { children: "Type" }),
-          /* @__PURE__ */ jsx2("th", { children: "Splice Loss" }),
-          /* @__PURE__ */ jsx2("th", { children: "Refl. Loss" })
+          /* @__PURE__ */ jsx2("th", { "aria-sort": ariaSortValue(eventSortState, "index"), children: /* @__PURE__ */ jsx2("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState(current, "index")), children: "#" }) }),
+          /* @__PURE__ */ jsx2("th", { "aria-sort": ariaSortValue(eventSortState, "distance"), children: /* @__PURE__ */ jsx2("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState(current, "distance")), children: "Distance" }) }),
+          /* @__PURE__ */ jsx2("th", { "aria-sort": ariaSortValue(eventSortState, "type"), children: /* @__PURE__ */ jsx2("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState(current, "type")), children: "Type" }) }),
+          /* @__PURE__ */ jsx2("th", { "aria-sort": ariaSortValue(eventSortState, "spliceLoss"), children: /* @__PURE__ */ jsx2("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState(current, "spliceLoss")), children: "Splice Loss" }) }),
+          /* @__PURE__ */ jsx2("th", { "aria-sort": ariaSortValue(eventSortState, "reflLoss"), children: /* @__PURE__ */ jsx2("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState(current, "reflLoss")), children: "Refl. Loss" }) })
         ] }) }),
-        /* @__PURE__ */ jsx2("tbody", { children: normalized.keyEvents.events.map((event, index) => /* @__PURE__ */ jsxs2("tr", { className: TraceReport_default.noSplitRow, children: [
-          /* @__PURE__ */ jsx2("td", { children: index + 1 }),
-          /* @__PURE__ */ jsx2("td", { children: event.distance }),
-          /* @__PURE__ */ jsx2("td", { children: event.type }),
-          /* @__PURE__ */ jsx2("td", { children: event.spliceLoss }),
-          /* @__PURE__ */ jsx2("td", { children: event.reflLoss })
-        ] }, `report-event-${index}`)) })
+        /* @__PURE__ */ jsx2("tbody", { children: sortedEvents.map((row) => /* @__PURE__ */ jsxs2("tr", { className: TraceReport_default.noSplitRow, children: [
+          /* @__PURE__ */ jsx2("td", { children: row.index + 1 }),
+          /* @__PURE__ */ jsx2("td", { children: row.event.distance }),
+          /* @__PURE__ */ jsx2("td", { children: row.event.type }),
+          /* @__PURE__ */ jsx2("td", { children: row.event.spliceLoss }),
+          /* @__PURE__ */ jsx2("td", { children: row.event.reflLoss })
+        ] }, `report-event-${row.index}`)) })
       ] })
     ] }),
     /* @__PURE__ */ jsxs2("footer", { className: TraceReport_default.footer, children: [
@@ -493,6 +538,7 @@ export {
   TraceViewer,
   assessEvent,
   assessSummary,
+  buildTimestampedFilename,
   clampViewport,
   classifyEvent,
   computeCursorMeasurement,
@@ -505,6 +551,8 @@ export {
   createCanvas,
   createRenderScheduler,
   dataToPixel,
+  downloadBlob,
+  downloadTextFile,
   drawCrosshair,
   drawEventMarkers,
   drawMeasurementCursors,
@@ -530,6 +578,8 @@ export {
   pixelToData,
   renderFrame,
   resolveCrosshairState,
+  serializeEventsAsCsv,
+  serializeEventsAsTsv,
   toCursorPoints,
   traceToImageBlob,
   traceToImageURL,

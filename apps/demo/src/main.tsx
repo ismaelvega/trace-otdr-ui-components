@@ -114,7 +114,12 @@ function App() {
       {normalized && page === "components" ? (
         <section className="demoPanel demoGrid">
           <TraceSummary result={normalized} />
-          <TraceChart trace={normalized.trace} events={normalized.keyEvents.events} />
+          <TraceChart
+            trace={normalized.trace}
+            events={normalized.keyEvents.events}
+            showExportActions
+            exportFileBaseName={`${(normalized.filename ?? "demo-trace").replace(/\.[^.]+$/u, "")}-chart`}
+          />
           <FiberMap events={normalized.keyEvents.events} locationA={normalized.genParams.locationA} locationB={normalized.genParams.locationB} />
           <LossBudgetChart events={normalized.keyEvents.events} />
         </section>

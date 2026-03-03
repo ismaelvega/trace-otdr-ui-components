@@ -103,6 +103,21 @@ interface CursorMeasurement {
 }
 declare function computeCursorMeasurement(trace: TracePoint[], events: KeyEvent[], cursors: MeasurementCursors): CursorMeasurement | null;
 
+interface EventTableExportRow {
+    index: number;
+    distance: string;
+    type: string;
+    spliceLoss: string;
+    reflLoss: string;
+    slope: string;
+    status: string;
+}
+declare function serializeEventsAsTsv(rows: EventTableExportRow[]): string;
+declare function serializeEventsAsCsv(rows: EventTableExportRow[]): string;
+declare function downloadBlob(blob: Blob, filename: string): void;
+declare function downloadTextFile(content: string, filename: string, mimeType?: string): void;
+declare function buildTimestampedFilename(baseName: string, extension: string, date?: Date): string;
+
 declare function normalizeSorResult(result: SorResult | SorData): SorData;
 
 interface CanvasHandle {
@@ -284,13 +299,15 @@ interface TraceChartProps {
     selectedEvent?: number | null;
     measurementCursors?: MeasurementCursors;
     defaultMeasurementCursors?: MeasurementCursors;
+    showExportActions?: boolean;
+    exportFileBaseName?: string;
     className?: string;
     onPointHover?: (point: TracePoint, index: number) => void;
     onEventClick?: (event: KeyEvent, index: number) => void;
     onMeasurementCursorsChange?: (value: MeasurementCursors) => void;
     onZoomChange?: (viewport: ViewportRange) => void;
 }
-declare function TraceChart({ trace, events, overlays, viewport: controlledViewport, width, height, xUnit, selectedEvent, measurementCursors: controlledMeasurementCursors, defaultMeasurementCursors, className, onPointHover, onEventClick, onMeasurementCursorsChange, onZoomChange, }: TraceChartProps): ReactElement;
+declare function TraceChart({ trace, events, overlays, viewport: controlledViewport, width, height, xUnit, selectedEvent, measurementCursors: controlledMeasurementCursors, defaultMeasurementCursors, showExportActions, exportFileBaseName, className, onPointHover, onEventClick, onMeasurementCursorsChange, onZoomChange, }: TraceChartProps): ReactElement;
 
 interface TraceMeasurementPanelProps {
     cursors: MeasurementCursors;
@@ -314,9 +331,11 @@ interface EventTableProps {
     xUnit?: DistanceUnit;
     thresholds?: EventThresholds | undefined;
     selectedEvent?: number | null;
+    showExportActions?: boolean;
+    exportFileBaseName?: string;
     onEventSelect?: (event: KeyEvent | null, index: number | null) => void;
 }
-declare function EventTable({ result, compact, xUnit, thresholds, selectedEvent, onEventSelect, }: EventTableProps): ReactElement;
+declare function EventTable({ result, compact, xUnit, thresholds, selectedEvent, showExportActions, exportFileBaseName, onEventSelect, }: EventTableProps): ReactElement;
 
 interface LossBudgetChartProps {
     events: KeyEvent[];
@@ -459,4 +478,4 @@ interface TraceImageOptions {
 declare function traceToImageBlob(trace: TracePoint[], options?: TraceImageOptions): Promise<Blob>;
 declare function traceToImageURL(trace: TracePoint[], options?: TraceImageOptions): Promise<string>;
 
-export { type AllThresholds, type AssessmentStatus, type CanvasHandle, type CanvasRect, type CreateCanvasOptions, type CrosshairState, type CursorMeasurement, DISTANCE_CONVERSION_FACTORS, type DistanceUnit, EquipmentInfoPanel, type EquipmentInfoPanelProps, type EventCategory, type EventMarker, EventSelectionProvider, EventTable, type EventTableProps, type EventThresholds, FiberInfoPanel, type FiberInfoPanelProps, FiberMap, type FiberMapProps, type InfoEntry, InfoPanel, type InfoPanelProps, type LossBudget, LossBudgetChart, type LossBudgetChartProps, MARGIN, type MeasurementCursor, type MeasurementCursorKey, type MeasurementCursors, MeasurementInfoPanel, type MeasurementInfoPanelProps, type PlotRect, PrintButton, type PrintButtonProps, type RenderContext, type RenderScheduler, SorDropZone, type SorDropZoneProps, StatusBadge, type StatusBadgeProps, type StatusBadgeState, type SummaryThresholds, TraceChart, type TraceChartProps, TraceComparison, type TraceComparisonItem, type TraceComparisonProps, type TraceImageOptions, TraceMeasurementPanel, type TraceMeasurementPanelProps, type TraceOverlay, TraceReport, type TraceReportProps, type TraceStyle, TraceSummary, type TraceSummaryProps, TraceViewer, type TraceViewerHandle, type TraceViewerProps, type ViewportRange, type ZoomAxis, type ZoomOptions, assessEvent, assessSummary, clampViewport, classifyEvent, computeCursorMeasurement, computeEventMarkers, computeLossBudget, computeViewport, configureHiDpiCanvas, convertDistance, convertDistanceLabel, createCanvas, createRenderScheduler, dataToPixel, drawCrosshair, drawEventMarkers, drawMeasurementCursors, drawTrace, drawTraceOverlays, drawXAxis, drawYAxis, findNearestTracePointIndex, formatDateTime, formatDistance, formatEventTooltip, formatPower, formatSlope, formatWavelength, getDevicePixelRatio, getPlotRect, getZoomAxisFromModifiers, hitTestEventMarkers, hitTestMeasurementCursors, lttb, normalizeSorResult, panViewportByPixels, pixelToData, renderFrame, resolveCrosshairState, toCursorPoints, traceToImageBlob, traceToImageURL, useEventSelection, useThresholds, useTraceData, useZoomPan, zoomViewportAtPixel };
+export { type AllThresholds, type AssessmentStatus, type CanvasHandle, type CanvasRect, type CreateCanvasOptions, type CrosshairState, type CursorMeasurement, DISTANCE_CONVERSION_FACTORS, type DistanceUnit, EquipmentInfoPanel, type EquipmentInfoPanelProps, type EventCategory, type EventMarker, EventSelectionProvider, EventTable, type EventTableExportRow, type EventTableProps, type EventThresholds, FiberInfoPanel, type FiberInfoPanelProps, FiberMap, type FiberMapProps, type InfoEntry, InfoPanel, type InfoPanelProps, type LossBudget, LossBudgetChart, type LossBudgetChartProps, MARGIN, type MeasurementCursor, type MeasurementCursorKey, type MeasurementCursors, MeasurementInfoPanel, type MeasurementInfoPanelProps, type PlotRect, PrintButton, type PrintButtonProps, type RenderContext, type RenderScheduler, SorDropZone, type SorDropZoneProps, StatusBadge, type StatusBadgeProps, type StatusBadgeState, type SummaryThresholds, TraceChart, type TraceChartProps, TraceComparison, type TraceComparisonItem, type TraceComparisonProps, type TraceImageOptions, TraceMeasurementPanel, type TraceMeasurementPanelProps, type TraceOverlay, TraceReport, type TraceReportProps, type TraceStyle, TraceSummary, type TraceSummaryProps, TraceViewer, type TraceViewerHandle, type TraceViewerProps, type ViewportRange, type ZoomAxis, type ZoomOptions, assessEvent, assessSummary, buildTimestampedFilename, clampViewport, classifyEvent, computeCursorMeasurement, computeEventMarkers, computeLossBudget, computeViewport, configureHiDpiCanvas, convertDistance, convertDistanceLabel, createCanvas, createRenderScheduler, dataToPixel, downloadBlob, downloadTextFile, drawCrosshair, drawEventMarkers, drawMeasurementCursors, drawTrace, drawTraceOverlays, drawXAxis, drawYAxis, findNearestTracePointIndex, formatDateTime, formatDistance, formatEventTooltip, formatPower, formatSlope, formatWavelength, getDevicePixelRatio, getPlotRect, getZoomAxisFromModifiers, hitTestEventMarkers, hitTestMeasurementCursors, lttb, normalizeSorResult, panViewportByPixels, pixelToData, renderFrame, resolveCrosshairState, serializeEventsAsCsv, serializeEventsAsTsv, toCursorPoints, traceToImageBlob, traceToImageURL, useEventSelection, useThresholds, useTraceData, useZoomPan, zoomViewportAtPixel };

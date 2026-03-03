@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.0] - 2026-03-03
+
+### Added
+
+- Dual measurement cursors (`A`/`B`) on the trace chart with delta metrics panel and keyboard controls.
+- Copy/download actions:
+  - `TraceChart`: copy PNG to clipboard and download PNG.
+  - `EventTable`: copy TSV and download CSV.
+- Shared export utilities for CSV/TSV serialization, blob download, and timestamped filenames.
+
+### Changed
+
+- `FiberMap` UX improvements:
+  - Hover labels on markers.
+  - Wheel zoom and horizontal scroll behavior for zoomed navigation.
+  - Stable marker hover behavior (no position jump).
+- Visual polish updates across chart/table surfaces and axis label overlap fixes.
+- `LossBudgetChart` now includes interactive sorting controls (`#`, `Distance`, `Splice`, `Status`).
+- `TraceReport` event table now supports sortable columns.
+
+### Fixed
+
+- Chart marker clipping issue near Y-axis boundary.
+- Overlap between Y-axis label and chart content.
+- Workspace demo import/runtime integration issues around SOR parser usage.
+
 ## [1.0.0] - 2026-03-03
 
 ### Added

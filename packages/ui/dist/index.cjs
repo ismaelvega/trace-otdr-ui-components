@@ -41,6 +41,7 @@ __export(index_exports, {
   TraceViewer: () => TraceViewer,
   assessEvent: () => assessEvent,
   assessSummary: () => assessSummary,
+  buildTimestampedFilename: () => buildTimestampedFilename,
   clampViewport: () => clampViewport,
   classifyEvent: () => classifyEvent,
   computeCursorMeasurement: () => computeCursorMeasurement,
@@ -53,6 +54,8 @@ __export(index_exports, {
   createCanvas: () => createCanvas,
   createRenderScheduler: () => createRenderScheduler,
   dataToPixel: () => dataToPixel,
+  downloadBlob: () => downloadBlob,
+  downloadTextFile: () => downloadTextFile,
   drawCrosshair: () => drawCrosshair,
   drawEventMarkers: () => drawEventMarkers,
   drawMeasurementCursors: () => drawMeasurementCursors,
@@ -78,6 +81,8 @@ __export(index_exports, {
   pixelToData: () => pixelToData,
   renderFrame: () => renderFrame,
   resolveCrosshairState: () => resolveCrosshairState,
+  serializeEventsAsCsv: () => serializeEventsAsCsv,
+  serializeEventsAsTsv: () => serializeEventsAsTsv,
   toCursorPoints: () => toCursorPoints,
   traceToImageBlob: () => traceToImageBlob,
   traceToImageURL: () => traceToImageURL,
@@ -381,6 +386,79 @@ function computeCursorMeasurement(trace, events, cursors) {
     reflectiveEventCountBetween: counts.reflectiveEventCountBetween,
     spliceLossSumBetween: counts.spliceLossSumBetween
   };
+}
+
+// src/utils/export.ts
+var EVENT_TABLE_HEADERS = ["#", "Distance", "Type", "Splice Loss", "Refl. Loss", "Slope", "Status"];
+function escapeCsvCell(value) {
+  if (!/[",\n\r]/.test(value)) {
+    return value;
+  }
+  return `"${value.replaceAll('"', '""')}"`;
+}
+function stringifyCell(value) {
+  return String(value);
+}
+function serializeEventRows(rows, delimiter) {
+  const serializeCell = delimiter === "," ? escapeCsvCell : (value) => value;
+  const lines = [];
+  lines.push(EVENT_TABLE_HEADERS.join(delimiter));
+  for (const row of rows) {
+    const values = [
+      row.index,
+      row.distance,
+      row.type,
+      row.spliceLoss,
+      row.reflLoss,
+      row.slope,
+      row.status
+    ].map((value) => serializeCell(stringifyCell(value)));
+    lines.push(values.join(delimiter));
+  }
+  return `${lines.join("\n")}
+`;
+}
+function serializeEventsAsTsv(rows) {
+  return serializeEventRows(rows, "	");
+}
+function serializeEventsAsCsv(rows) {
+  return serializeEventRows(rows, ",");
+}
+function downloadBlob(blob, filename) {
+  if (typeof document === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    throw new Error("downloadBlob requires DOM + URL.createObjectURL support");
+  }
+  const anchor = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+function downloadTextFile(content, filename, mimeType = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type: mimeType });
+  downloadBlob(blob, filename);
+}
+function sanitizeBaseName(baseName) {
+  const normalized = baseName.trim().replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+  return normalized.length > 0 ? normalized : "export";
+}
+function pad2(value) {
+  return value.toString().padStart(2, "0");
+}
+function buildTimestampedFilename(baseName, extension, date = /* @__PURE__ */ new Date()) {
+  const safeBase = sanitizeBaseName(baseName);
+  const safeExtension = extension.replace(/^\./, "");
+  const stamp = [
+    date.getFullYear().toString(),
+    pad2(date.getMonth() + 1),
+    pad2(date.getDate())
+  ].join("");
+  const time = [pad2(date.getHours()), pad2(date.getMinutes()), pad2(date.getSeconds())].join("");
+  return `${safeBase}-${stamp}-${time}.${safeExtension}`;
 }
 
 // src/adapters/normalize.ts
@@ -1489,6 +1567,17 @@ function buildMeasurementCursor(state) {
     traceIndex: state.index
   };
 }
+function toPngBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error("Failed to render chart PNG"));
+    }, "image/png");
+  });
+}
 function TraceChart({
   trace,
   events = [],
@@ -1500,6 +1589,8 @@ function TraceChart({
   selectedEvent = null,
   measurementCursors: controlledMeasurementCursors,
   defaultMeasurementCursors,
+  showExportActions = false,
+  exportFileBaseName = "otdr-trace",
   className,
   onPointHover,
   onEventClick,
@@ -1560,6 +1651,9 @@ function TraceChart({
   const renderRef = (0, import_react.useRef)(() => void 0);
   const [tooltip, setTooltip] = (0, import_react.useState)(null);
   const [liveLabel, setLiveLabel] = (0, import_react.useState)("");
+  const [exportLiveLabel, setExportLiveLabel] = (0, import_react.useState)("");
+  const [isCopyingChart, setIsCopyingChart] = (0, import_react.useState)(false);
+  const [isDownloadingChart, setIsDownloadingChart] = (0, import_react.useState)(false);
   const keyboardMarkerIndexRef = (0, import_react.useRef)(-1);
   const hoveredMarkerIndexRef = (0, import_react.useRef)(null);
   measurementCursorsRef.current = resolvedMeasurementCursors;
@@ -1746,6 +1840,47 @@ function TraceChart({
     const canvasRect = getCanvasRect(handle.canvas);
     const next = panViewportByPixels(viewportRef.current, boundsRef.current, deltaX, deltaY, canvasRect);
     setViewport(next);
+  };
+  const copyChart = async () => {
+    if (isCopyingChart) return;
+    const canvas = canvasHandleRef.current?.canvas;
+    if (!canvas) {
+      setExportLiveLabel("Chart is not ready for copy.");
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+      setExportLiveLabel("PNG clipboard copy is not supported in this browser.");
+      return;
+    }
+    setIsCopyingChart(true);
+    try {
+      const blob = await toPngBlob(canvas);
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      setExportLiveLabel("Chart copied as PNG.");
+    } catch {
+      setExportLiveLabel("Failed to copy chart image.");
+    } finally {
+      setIsCopyingChart(false);
+    }
+  };
+  const downloadChart = async () => {
+    if (isDownloadingChart) return;
+    const canvas = canvasHandleRef.current?.canvas;
+    if (!canvas) {
+      setExportLiveLabel("Chart is not ready for download.");
+      return;
+    }
+    setIsDownloadingChart(true);
+    try {
+      const blob = await toPngBlob(canvas);
+      const filename = buildTimestampedFilename(exportFileBaseName, "png");
+      downloadBlob(blob, filename);
+      setExportLiveLabel(`Downloaded ${filename}.`);
+    } catch {
+      setExportLiveLabel("Failed to download chart PNG.");
+    } finally {
+      setIsDownloadingChart(false);
+    }
   };
   (0, import_react.useEffect)(() => {
     const container = containerRef.current;
@@ -2074,6 +2209,28 @@ function TraceChart({
         }
       },
       children: [
+        showExportActions ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: TraceChart_default.actions, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              className: TraceChart_default.actionButton,
+              onClick: () => void copyChart(),
+              disabled: isCopyingChart,
+              children: isCopyingChart ? "Copying..." : "Copy Chart"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              className: TraceChart_default.actionButton,
+              onClick: () => void downloadChart(),
+              disabled: isDownloadingChart,
+              children: isDownloadingChart ? "Downloading..." : "Download PNG"
+            }
+          )
+        ] }) : null,
         tooltip ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.tooltip, style: { left: tooltip.left, top: tooltip.top }, children: tooltip.text }) : null,
         measurement ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: TraceChart_default.measurementHud, children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: TraceChart_default.measurementRow, children: [
@@ -2088,7 +2245,8 @@ function TraceChart({
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.measurementMeta, children: `Events ${measurement.eventCountBetween} \xB7 Reflective ${measurement.reflectiveEventCountBetween} \xB7 Splice \u03A3 ${formatPower(measurement.spliceLossSumBetween, 3)}` })
         ] }) : null,
         trace.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.empty, children: "No trace points available" }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.liveRegion, "aria-live": "polite", children: liveLabel })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.liveRegion, "aria-live": "polite", children: liveLabel }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.liveRegion, "aria-live": "polite", children: exportLiveLabel })
       ]
     }
   );
@@ -2256,6 +2414,9 @@ function renderType(category) {
   if (category === "end-of-fiber") return "End of Fiber";
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
+function renderStatus(status) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 function ariaSortValue(sortState, key) {
   if (!sortState || sortState.key !== key) return "none";
   return sortState.direction === "asc" ? "ascending" : "descending";
@@ -2266,11 +2427,14 @@ function EventTable({
   xUnit = "km",
   thresholds = {},
   selectedEvent = null,
+  showExportActions = false,
+  exportFileBaseName = "otdr-events",
   onEventSelect
 }) {
   const normalized = (0, import_react3.useMemo)(() => normalizeSorResult(result), [result]);
   const [sortState, setSortState] = (0, import_react3.useState)(null);
   const rowRefs = (0, import_react3.useRef)([]);
+  const [exportMessage, setExportMessage] = (0, import_react3.useState)("");
   const rows = (0, import_react3.useMemo)(() => {
     const prepared = normalized.keyEvents.events.map((event, index) => {
       const category = classifyEvent(event);
@@ -2308,89 +2472,130 @@ function EventTable({
       row.scrollIntoView({ block: "nearest" });
     }
   }, [selectedEvent]);
+  const exportRows = (0, import_react3.useMemo)(
+    () => rows.map((row) => ({
+      index: row.index + 1,
+      distance: formatDistance(row.distance, xUnit),
+      type: renderType(row.type),
+      spliceLoss: `${row.spliceLoss.toFixed(3)} dB`,
+      reflLoss: `${row.reflLoss.toFixed(3)} dB`,
+      slope: `${row.slope.toFixed(3)} dB/km`,
+      status: renderStatus(row.status)
+    })),
+    [rows, xUnit]
+  );
+  const copyTable = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setExportMessage("Clipboard text copy is not supported in this browser.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(serializeEventsAsTsv(exportRows));
+      setExportMessage(`Copied ${exportRows.length} rows.`);
+    } catch {
+      setExportMessage("Failed to copy table.");
+    }
+  };
+  const downloadTable = () => {
+    try {
+      const filename = buildTimestampedFilename(exportFileBaseName, "csv");
+      const csv = serializeEventsAsCsv(exportRows);
+      downloadTextFile(csv, filename, "text/csv;charset=utf-8");
+      setExportMessage(`Downloaded ${filename}.`);
+    } catch {
+      setExportMessage("Failed to download CSV.");
+    }
+  };
   const summary = normalized.keyEvents.summary;
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: EventTable_default.wrapper, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("table", { className: EventTable_default.table, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("thead", { className: EventTable_default.head, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("tr", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, "aria-sort": ariaSortValue(sortState, "index"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "index")), children: "#" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, "aria-sort": ariaSortValue(sortState, "distance"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "distance")), children: "Distance" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "type"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "type")), children: "Type" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "spliceLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "spliceLoss")), children: "Splice Loss" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "reflLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "reflLoss")), children: "Refl. Loss" }) }),
-      !compact ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "slope"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "slope")), children: "Slope" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.statusCol, children: "Status" })
-      ] }) : null
-    ] }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("tbody", { className: EventTable_default.body, children: rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-      "tr",
-      {
-        ref: (node) => {
-          rowRefs.current[row.index] = node;
-        },
-        className: `${EventTable_default.row} ${selectedEvent === row.index ? EventTable_default.selected : ""}`,
-        onClick: () => onEventSelect?.(row.event, row.index),
-        tabIndex: 0,
-        onKeyDown: (event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            onEventSelect?.(row.event, row.index);
-            return;
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onEventSelect?.(null, null);
-            return;
-          }
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            rowRefs.current[row.index + 1]?.focus();
-            return;
-          }
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            rowRefs.current[Math.max(0, row.index - 1)]?.focus();
-          }
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, children: row.index + 1 }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, children: formatDistance(row.distance, xUnit) }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: EventTable_default.typeCell, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: EventTable_default.icon }),
-            renderType(row.type)
-          ] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, children: [
-            row.spliceLoss.toFixed(3),
-            " dB"
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, children: [
-            row.reflLoss.toFixed(3),
-            " dB"
-          ] }),
-          !compact ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: EventTable_default.wrapper, children: [
+    showExportActions ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: EventTable_default.actions, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.actionButton, onClick: () => void copyTable(), children: "Copy Table" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.actionButton, onClick: downloadTable, children: "Download CSV" })
+    ] }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: EventTable_default.tableScroll, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("table", { className: EventTable_default.table, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("thead", { className: EventTable_default.head, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("tr", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, "aria-sort": ariaSortValue(sortState, "index"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "index")), children: "#" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, "aria-sort": ariaSortValue(sortState, "distance"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "distance")), children: "Distance" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "type"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "type")), children: "Type" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "spliceLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "spliceLoss")), children: "Splice Loss" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "reflLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "reflLoss")), children: "Refl. Loss" }) }),
+        !compact ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "slope"), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "slope")), children: "Slope" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { scope: "col", className: EventTable_default.statusCol, children: "Status" })
+        ] }) : null
+      ] }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("tbody", { className: EventTable_default.body, children: rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        "tr",
+        {
+          ref: (node) => {
+            rowRefs.current[row.index] = node;
+          },
+          className: `${EventTable_default.row} ${selectedEvent === row.index ? EventTable_default.selected : ""}`,
+          onClick: () => onEventSelect?.(row.event, row.index),
+          tabIndex: 0,
+          onKeyDown: (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onEventSelect?.(row.event, row.index);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onEventSelect?.(null, null);
+              return;
+            }
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              rowRefs.current[row.index + 1]?.focus();
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              rowRefs.current[Math.max(0, row.index - 1)]?.focus();
+            }
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, children: row.index + 1 }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, children: formatDistance(row.distance, xUnit) }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: EventTable_default.typeCell, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: EventTable_default.icon }),
+              renderType(row.type)
+            ] }) }),
             /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, children: [
-              row.slope.toFixed(3),
-              " dB/km"
+              row.spliceLoss.toFixed(3),
+              " dB"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { className: EventTable_default.statusCol, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(StatusBadge, { status: row.status }) })
-          ] }) : null
-        ]
-      },
-      `${row.index}-${row.event.distance}-${row.event.type}`
-    )) }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("tfoot", { className: EventTable_default.footer, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("tr", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { colSpan: compact ? 3 : 5, children: "Summary" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, colSpan: compact ? 2 : 1, children: [
-        "Total Loss: ",
-        summary.totalLoss.toFixed(3),
-        " dB"
-      ] }),
-      !compact ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, children: [
-        "ORL: ",
-        summary.orl.toFixed(3),
-        " dB"
-      ] }) : null
-    ] }) })
-  ] }) });
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, children: [
+              row.reflLoss.toFixed(3),
+              " dB"
+            ] }),
+            !compact ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, children: [
+                row.slope.toFixed(3),
+                " dB/km"
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { className: EventTable_default.statusCol, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(StatusBadge, { status: row.status }) })
+            ] }) : null
+          ]
+        },
+        `${row.index}-${row.event.distance}-${row.event.type}`
+      )) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("tfoot", { className: EventTable_default.footer, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("tr", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { colSpan: compact ? 3 : 5, children: "Summary" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, colSpan: compact ? 2 : 1, children: [
+          "Total Loss: ",
+          summary.totalLoss.toFixed(3),
+          " dB"
+        ] }),
+        !compact ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("td", { className: EventTable_default.numeric, children: [
+          "ORL: ",
+          summary.orl.toFixed(3),
+          " dB"
+        ] }) : null
+      ] }) })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: EventTable_default.liveRegion, "aria-live": "polite", children: exportMessage })
+  ] });
 }
 
 // src/components/LossBudgetChart.tsx
@@ -2404,6 +2609,24 @@ var import_jsx_runtime6 = require("react/jsx-runtime");
 function parseNumber3(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+function cycleSortState2(current, key) {
+  if (!current || current.key !== key) {
+    return { key, direction: "asc" };
+  }
+  if (current.direction === "asc") {
+    return { key, direction: "desc" };
+  }
+  return null;
+}
+function sortIndicator(sortState, key) {
+  if (!sortState || sortState.key !== key) return "\u2195";
+  return sortState.direction === "asc" ? "\u2191" : "\u2193";
+}
+function statusRank(status) {
+  if (status === "fail") return 2;
+  if (status === "warn") return 1;
+  return 0;
 }
 function clampPercent(value) {
   if (!Number.isFinite(value)) return 0;
@@ -2441,10 +2664,12 @@ function LossBudgetChart({
   onBarClick,
   vertical = false
 }) {
+  const [sortState, setSortState] = (0, import_react4.useState)(null);
   const rows = (0, import_react4.useMemo)(() => {
     const withLoss = events.map((event, index) => ({
       event,
       index,
+      distance: parseNumber3(event.distance),
       spliceLoss: parseNumber3(event.spliceLoss),
       absLoss: Math.abs(parseNumber3(event.spliceLoss))
     })).filter((row) => row.spliceLoss !== 0);
@@ -2469,12 +2694,34 @@ function LossBudgetChart({
           widthPct: clampPercent(rawPct),
           overflow: rawPct > 100
         };
+      }).sort((a, b) => {
+        if (!sortState) return a.index - b.index;
+        const multiplier = sortState.direction === "asc" ? 1 : -1;
+        if (sortState.key === "index") {
+          return (a.index - b.index) * multiplier;
+        }
+        if (sortState.key === "distance") {
+          return (a.distance - b.distance) * multiplier;
+        }
+        if (sortState.key === "spliceLoss") {
+          return (a.absLoss - b.absLoss) * multiplier;
+        }
+        const statusDiff = (statusRank(a.status) - statusRank(b.status)) * multiplier;
+        if (statusDiff !== 0) return statusDiff;
+        return (a.index - b.index) * multiplier;
       })
     };
-  }, [events, thresholds]);
+  }, [events, sortState, thresholds]);
   const warnPct = rows.maxLoss > 0 && thresholds.spliceLoss?.warn ? clampPercent(thresholds.spliceLoss.warn / rows.maxLoss * 100) : null;
   const failPct = rows.maxLoss > 0 && thresholds.spliceLoss?.fail ? clampPercent(thresholds.spliceLoss.fail / rows.maxLoss * 100) : null;
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: `${LossBudgetChart_default.root} ${vertical ? LossBudgetChart_default.vertical : ""}`, "aria-label": "Loss budget chart", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: LossBudgetChart_default.toolbar, role: "group", "aria-label": "Sort loss budget bars", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: LossBudgetChart_default.toolbarLabel, children: "Sort" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "index")), children: `# ${sortIndicator(sortState, "index")}` }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "distance")), children: `Distance ${sortIndicator(sortState, "distance")}` }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "spliceLoss")), children: `Splice ${sortIndicator(sortState, "spliceLoss")}` }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "status")), children: `Status ${sortIndicator(sortState, "status")}` })
+    ] }),
     rows.dominantScaleActive ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { className: LossBudgetChart_default.scaleHint, children: "Scaled for readability. Bars with an overflow marker exceed display scale." }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: LossBudgetChart_default.chart, children: rows.rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
       "button",
@@ -3174,6 +3421,7 @@ function TraceViewerInner({
     () => computeCursorMeasurement(normalized.trace, normalized.keyEvents.events, measurementCursors),
     [measurementCursors, normalized.keyEvents.events, normalized.trace]
   );
+  const exportBaseName = normalized.filename ? normalized.filename.replace(/\.[^.]+$/u, "") : "otdr-trace";
   (0, import_react12.useEffect)(() => {
     onExposeApi({
       select,
@@ -3204,6 +3452,8 @@ function TraceViewerInner({
           xUnit,
           selectedEvent: selectedIndex,
           measurementCursors,
+          showExportActions: true,
+          exportFileBaseName: `${exportBaseName}-chart`,
           onEventClick: (_, index) => select(index),
           onMeasurementCursorsChange: setMeasurementCursors
         }
@@ -3241,6 +3491,8 @@ function TraceViewerInner({
         xUnit,
         thresholds: thresholds?.event,
         selectedEvent: selectedIndex,
+        showExportActions: true,
+        exportFileBaseName: `${exportBaseName}-events`,
         onEventSelect: (_, index) => select(index)
       }
     ) }) : null,
@@ -3453,6 +3705,23 @@ var TraceReport_default = {};
 
 // src/components/TraceReport/TraceReport.tsx
 var import_jsx_runtime17 = require("react/jsx-runtime");
+function parseNumber4(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function cycleSortState3(current, key) {
+  if (!current || current.key !== key) {
+    return { key, direction: "asc" };
+  }
+  if (current.direction === "asc") {
+    return { key, direction: "desc" };
+  }
+  return null;
+}
+function ariaSortValue2(sortState, key) {
+  if (!sortState || sortState.key !== key) return "none";
+  return sortState.direction === "asc" ? "ascending" : "descending";
+}
 function TraceReport({
   result,
   companyName = "Fiber Services",
@@ -3462,6 +3731,7 @@ function TraceReport({
 }) {
   const normalized = (0, import_react14.useMemo)(() => normalizeSorResult(result), [result]);
   const [traceUrl, setTraceUrl] = (0, import_react14.useState)(null);
+  const [eventSortState, setEventSortState] = (0, import_react14.useState)(null);
   (0, import_react14.useEffect)(() => {
     let active = true;
     void traceToImageURL(normalized.trace).then((url) => {
@@ -3472,6 +3742,28 @@ function TraceReport({
       active = false;
     };
   }, [normalized.trace]);
+  const sortedEvents = (0, import_react14.useMemo)(() => {
+    const prepared = normalized.keyEvents.events.map((event, index) => ({
+      index,
+      event,
+      distance: parseNumber4(event.distance),
+      type: event.type,
+      spliceLoss: parseNumber4(event.spliceLoss),
+      reflLoss: parseNumber4(event.reflLoss)
+    }));
+    if (!eventSortState) return prepared;
+    const { key, direction } = eventSortState;
+    const multiplier = direction === "asc" ? 1 : -1;
+    return prepared.slice().sort((a, b) => {
+      if (key === "type") {
+        return a.type.localeCompare(b.type) * multiplier;
+      }
+      if (key === "index") {
+        return (a.index - b.index) * multiplier;
+      }
+      return (a[key] - b[key]) * multiplier;
+    });
+  }, [eventSortState, normalized.keyEvents.events]);
   return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("article", { className: TraceReport_default.root, children: [
     /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("header", { className: TraceReport_default.header, children: [
       /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { children: [
@@ -3514,19 +3806,19 @@ function TraceReport({
       /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("h2", { children: "Event Table" }),
       /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("table", { className: TraceReport_default.table, children: [
         /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("tr", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { children: "#" }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { children: "Distance" }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { children: "Type" }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { children: "Splice Loss" }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { children: "Refl. Loss" })
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { "aria-sort": ariaSortValue2(eventSortState, "index"), children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState3(current, "index")), children: "#" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { "aria-sort": ariaSortValue2(eventSortState, "distance"), children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState3(current, "distance")), children: "Distance" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { "aria-sort": ariaSortValue2(eventSortState, "type"), children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState3(current, "type")), children: "Type" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { "aria-sort": ariaSortValue2(eventSortState, "spliceLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState3(current, "spliceLoss")), children: "Splice Loss" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("th", { "aria-sort": ariaSortValue2(eventSortState, "reflLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("button", { type: "button", className: TraceReport_default.sortButton, onClick: () => setEventSortState((current) => cycleSortState3(current, "reflLoss")), children: "Refl. Loss" }) })
         ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("tbody", { children: normalized.keyEvents.events.map((event, index) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("tr", { className: TraceReport_default.noSplitRow, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: index + 1 }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: event.distance }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: event.type }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: event.spliceLoss }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: event.reflLoss })
-        ] }, `report-event-${index}`)) })
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("tbody", { children: sortedEvents.map((row) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("tr", { className: TraceReport_default.noSplitRow, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: row.index + 1 }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: row.event.distance }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: row.event.type }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: row.event.spliceLoss }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { children: row.event.reflLoss })
+        ] }, `report-event-${row.index}`)) })
       ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("footer", { className: TraceReport_default.footer, children: [
@@ -3703,6 +3995,7 @@ function useThresholds(defaults) {
   TraceViewer,
   assessEvent,
   assessSummary,
+  buildTimestampedFilename,
   clampViewport,
   classifyEvent,
   computeCursorMeasurement,
@@ -3715,6 +4008,8 @@ function useThresholds(defaults) {
   createCanvas,
   createRenderScheduler,
   dataToPixel,
+  downloadBlob,
+  downloadTextFile,
   drawCrosshair,
   drawEventMarkers,
   drawMeasurementCursors,
@@ -3740,6 +4035,8 @@ function useThresholds(defaults) {
   pixelToData,
   renderFrame,
   resolveCrosshairState,
+  serializeEventsAsCsv,
+  serializeEventsAsTsv,
   toCursorPoints,
   traceToImageBlob,
   traceToImageURL,

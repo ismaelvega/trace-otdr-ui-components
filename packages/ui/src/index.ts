@@ -11,6 +11,7 @@ export * from "./utils/classifiers.js";
 export * from "./utils/loss-budget.js";
 export * from "./utils/downsampling.js";
 export * from "./utils/cursor-measurement.js";
+export * from "./utils/export.js";
 
 export * from "./adapters/normalize.js";
 

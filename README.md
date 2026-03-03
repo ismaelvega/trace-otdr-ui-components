@@ -20,3 +20,8 @@ Monorepo for OTDR UI rendering and demos.
 ## Release Package
 
 The publishable package is `packages/ui` (`@trace-otdr/ui`).
+
+## Release Commands
+
+- `npm run release:ui:check` — run full verification + npm publish dry-run for `@trace-otdr/ui`
+- `npm run release:ui:publish` — run full verification + publish `@trace-otdr/ui`

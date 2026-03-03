@@ -1,11 +1,50 @@
 .wrapper {
+  position: relative;
   border: 1px solid var(--otdr-border, #cbd5e1);
   border-radius: var(--otdr-radius-lg, 14px);
-  overflow: auto;
+  overflow: hidden;
   background: var(--otdr-panel, #ffffff);
   box-shadow: var(--otdr-shadow-1, 0 1px 2px rgba(15, 42, 67, 0.08));
-  max-height: 520px;
   min-width: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--otdr-space-2, 8px);
+  padding: var(--otdr-space-2, 8px) var(--otdr-space-3, 12px);
+  border-bottom: 1px solid var(--otdr-divider, #d0ddeb);
+  background: var(--otdr-panel-strong, #edf4fb);
+}
+
+.actionButton {
+  appearance: none;
+  border: 1px solid var(--otdr-border-strong, #95aec8);
+  border-radius: var(--otdr-radius-sm, 6px);
+  background: var(--otdr-panel, #ffffff);
+  color: var(--otdr-text-emphasis, #0f2942);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: var(--otdr-font-size-xs, 12px);
+  font-weight: var(--otdr-weight-semibold, 600);
+  cursor: pointer;
+  transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
+}
+
+.actionButton:hover {
+  background: var(--otdr-interactive-bg-hover, #e9f3ff);
+}
+
+.actionButton:focus-visible {
+  outline: 2px solid var(--otdr-interactive-focus-ring, #2563eb);
+  outline-offset: 1px;
+  box-shadow: var(--otdr-interactive-focus-shadow, 0 0 0 3px rgba(37, 99, 235, 0.28));
+}
+
+.tableScroll {
+  overflow: auto;
+  max-height: 520px;
 }
 
 .table {
@@ -120,8 +159,20 @@
   border-radius: var(--otdr-radius-sm, 6px);
 }
 
+.liveRegion {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 1024px) {
-  .wrapper {
+  .tableScroll {
     max-height: 460px;
   }
 }
@@ -140,7 +191,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .row {
+  .row,
+  .actionButton {
     transition: none;
   }
 }

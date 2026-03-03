@@ -1,8 +1,8 @@
-import { useMemo, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import type { KeyEvent } from "sor-reader";
 
 import type { EventThresholds } from "../types/thresholds.js";
-import { assessEvent } from "../utils/classifiers.js";
+import { assessEvent, type AssessmentStatus } from "../utils/classifiers.js";
 import styles from "./LossBudgetChart.module.css";
 
 export interface LossBudgetChartProps {
@@ -13,9 +13,40 @@ export interface LossBudgetChartProps {
   vertical?: boolean;
 }
 
+type SortKey = "index" | "distance" | "spliceLoss" | "status";
+type SortDirection = "asc" | "desc";
+
+interface SortState {
+  key: SortKey;
+  direction: SortDirection;
+}
+
 function parseNumber(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function cycleSortState(current: SortState | null, key: SortKey): SortState | null {
+  if (!current || current.key !== key) {
+    return { key, direction: "asc" };
+  }
+
+  if (current.direction === "asc") {
+    return { key, direction: "desc" };
+  }
+
+  return null;
+}
+
+function sortIndicator(sortState: SortState | null, key: SortKey): string {
+  if (!sortState || sortState.key !== key) return "↕";
+  return sortState.direction === "asc" ? "↑" : "↓";
+}
+
+function statusRank(status: AssessmentStatus): number {
+  if (status === "fail") return 2;
+  if (status === "warn") return 1;
+  return 0;
 }
 
 function clampPercent(value: number): number {
@@ -60,11 +91,14 @@ export function LossBudgetChart({
   onBarClick,
   vertical = false,
 }: LossBudgetChartProps): ReactElement {
+  const [sortState, setSortState] = useState<SortState | null>(null);
+
   const rows = useMemo(() => {
     const withLoss = events
       .map((event, index) => ({
         event,
         index,
+        distance: parseNumber(event.distance),
         spliceLoss: parseNumber(event.spliceLoss),
         absLoss: Math.abs(parseNumber(event.spliceLoss)),
       }))
@@ -93,15 +127,47 @@ export function LossBudgetChart({
           widthPct: clampPercent(rawPct),
           overflow: rawPct > 100,
         };
+      }).sort((a, b) => {
+        if (!sortState) return a.index - b.index;
+
+        const multiplier = sortState.direction === "asc" ? 1 : -1;
+        if (sortState.key === "index") {
+          return (a.index - b.index) * multiplier;
+        }
+        if (sortState.key === "distance") {
+          return (a.distance - b.distance) * multiplier;
+        }
+        if (sortState.key === "spliceLoss") {
+          return (a.absLoss - b.absLoss) * multiplier;
+        }
+
+        const statusDiff = (statusRank(a.status) - statusRank(b.status)) * multiplier;
+        if (statusDiff !== 0) return statusDiff;
+        return (a.index - b.index) * multiplier;
       }),
     };
-  }, [events, thresholds]);
+  }, [events, sortState, thresholds]);
 
   const warnPct = rows.maxLoss > 0 && thresholds.spliceLoss?.warn ? clampPercent((thresholds.spliceLoss.warn / rows.maxLoss) * 100) : null;
   const failPct = rows.maxLoss > 0 && thresholds.spliceLoss?.fail ? clampPercent((thresholds.spliceLoss.fail / rows.maxLoss) * 100) : null;
 
   return (
     <section className={`${styles.root} ${vertical ? styles.vertical : ""}`} aria-label="Loss budget chart">
+      <div className={styles.toolbar} role="group" aria-label="Sort loss budget bars">
+        <span className={styles.toolbarLabel}>Sort</span>
+        <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "index"))}>
+          {`# ${sortIndicator(sortState, "index")}`}
+        </button>
+        <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "distance"))}>
+          {`Distance ${sortIndicator(sortState, "distance")}`}
+        </button>
+        <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "spliceLoss"))}>
+          {`Splice ${sortIndicator(sortState, "spliceLoss")}`}
+        </button>
+        <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "status"))}>
+          {`Status ${sortIndicator(sortState, "status")}`}
+        </button>
+      </div>
       {rows.dominantScaleActive ? <p className={styles.scaleHint}>Scaled for readability. Bars with an overflow marker exceed display scale.</p> : null}
       <div className={styles.chart}>
         {rows.rows.map((row) => (

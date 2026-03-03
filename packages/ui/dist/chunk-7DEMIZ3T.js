@@ -262,6 +262,79 @@ function computeCursorMeasurement(trace, events, cursors) {
   };
 }
 
+// src/utils/export.ts
+var EVENT_TABLE_HEADERS = ["#", "Distance", "Type", "Splice Loss", "Refl. Loss", "Slope", "Status"];
+function escapeCsvCell(value) {
+  if (!/[",\n\r]/.test(value)) {
+    return value;
+  }
+  return `"${value.replaceAll('"', '""')}"`;
+}
+function stringifyCell(value) {
+  return String(value);
+}
+function serializeEventRows(rows, delimiter) {
+  const serializeCell = delimiter === "," ? escapeCsvCell : (value) => value;
+  const lines = [];
+  lines.push(EVENT_TABLE_HEADERS.join(delimiter));
+  for (const row of rows) {
+    const values = [
+      row.index,
+      row.distance,
+      row.type,
+      row.spliceLoss,
+      row.reflLoss,
+      row.slope,
+      row.status
+    ].map((value) => serializeCell(stringifyCell(value)));
+    lines.push(values.join(delimiter));
+  }
+  return `${lines.join("\n")}
+`;
+}
+function serializeEventsAsTsv(rows) {
+  return serializeEventRows(rows, "	");
+}
+function serializeEventsAsCsv(rows) {
+  return serializeEventRows(rows, ",");
+}
+function downloadBlob(blob, filename) {
+  if (typeof document === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    throw new Error("downloadBlob requires DOM + URL.createObjectURL support");
+  }
+  const anchor = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+function downloadTextFile(content, filename, mimeType = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type: mimeType });
+  downloadBlob(blob, filename);
+}
+function sanitizeBaseName(baseName) {
+  const normalized = baseName.trim().replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+  return normalized.length > 0 ? normalized : "export";
+}
+function pad2(value) {
+  return value.toString().padStart(2, "0");
+}
+function buildTimestampedFilename(baseName, extension, date = /* @__PURE__ */ new Date()) {
+  const safeBase = sanitizeBaseName(baseName);
+  const safeExtension = extension.replace(/^\./, "");
+  const stamp = [
+    date.getFullYear().toString(),
+    pad2(date.getMonth() + 1),
+    pad2(date.getDate())
+  ].join("");
+  const time = [pad2(date.getHours()), pad2(date.getMinutes()), pad2(date.getSeconds())].join("");
+  return `${safeBase}-${stamp}-${time}.${safeExtension}`;
+}
+
 // src/adapters/normalize.ts
 function parseNumber(value) {
   const parsed = Number.parseFloat(value);
@@ -1368,6 +1441,17 @@ function buildMeasurementCursor(state) {
     traceIndex: state.index
   };
 }
+function toPngBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error("Failed to render chart PNG"));
+    }, "image/png");
+  });
+}
 function TraceChart({
   trace,
   events = [],
@@ -1379,6 +1463,8 @@ function TraceChart({
   selectedEvent = null,
   measurementCursors: controlledMeasurementCursors,
   defaultMeasurementCursors,
+  showExportActions = false,
+  exportFileBaseName = "otdr-trace",
   className,
   onPointHover,
   onEventClick,
@@ -1439,6 +1525,9 @@ function TraceChart({
   const renderRef = useRef(() => void 0);
   const [tooltip, setTooltip] = useState(null);
   const [liveLabel, setLiveLabel] = useState("");
+  const [exportLiveLabel, setExportLiveLabel] = useState("");
+  const [isCopyingChart, setIsCopyingChart] = useState(false);
+  const [isDownloadingChart, setIsDownloadingChart] = useState(false);
   const keyboardMarkerIndexRef = useRef(-1);
   const hoveredMarkerIndexRef = useRef(null);
   measurementCursorsRef.current = resolvedMeasurementCursors;
@@ -1625,6 +1714,47 @@ function TraceChart({
     const canvasRect = getCanvasRect(handle.canvas);
     const next = panViewportByPixels(viewportRef.current, boundsRef.current, deltaX, deltaY, canvasRect);
     setViewport(next);
+  };
+  const copyChart = async () => {
+    if (isCopyingChart) return;
+    const canvas = canvasHandleRef.current?.canvas;
+    if (!canvas) {
+      setExportLiveLabel("Chart is not ready for copy.");
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+      setExportLiveLabel("PNG clipboard copy is not supported in this browser.");
+      return;
+    }
+    setIsCopyingChart(true);
+    try {
+      const blob = await toPngBlob(canvas);
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      setExportLiveLabel("Chart copied as PNG.");
+    } catch {
+      setExportLiveLabel("Failed to copy chart image.");
+    } finally {
+      setIsCopyingChart(false);
+    }
+  };
+  const downloadChart = async () => {
+    if (isDownloadingChart) return;
+    const canvas = canvasHandleRef.current?.canvas;
+    if (!canvas) {
+      setExportLiveLabel("Chart is not ready for download.");
+      return;
+    }
+    setIsDownloadingChart(true);
+    try {
+      const blob = await toPngBlob(canvas);
+      const filename = buildTimestampedFilename(exportFileBaseName, "png");
+      downloadBlob(blob, filename);
+      setExportLiveLabel(`Downloaded ${filename}.`);
+    } catch {
+      setExportLiveLabel("Failed to download chart PNG.");
+    } finally {
+      setIsDownloadingChart(false);
+    }
   };
   useEffect(() => {
     const container = containerRef.current;
@@ -1953,6 +2083,28 @@ function TraceChart({
         }
       },
       children: [
+        showExportActions ? /* @__PURE__ */ jsxs("div", { className: TraceChart_default.actions, children: [
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              className: TraceChart_default.actionButton,
+              onClick: () => void copyChart(),
+              disabled: isCopyingChart,
+              children: isCopyingChart ? "Copying..." : "Copy Chart"
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              type: "button",
+              className: TraceChart_default.actionButton,
+              onClick: () => void downloadChart(),
+              disabled: isDownloadingChart,
+              children: isDownloadingChart ? "Downloading..." : "Download PNG"
+            }
+          )
+        ] }) : null,
         tooltip ? /* @__PURE__ */ jsx("div", { className: TraceChart_default.tooltip, style: { left: tooltip.left, top: tooltip.top }, children: tooltip.text }) : null,
         measurement ? /* @__PURE__ */ jsxs("div", { className: TraceChart_default.measurementHud, children: [
           /* @__PURE__ */ jsxs("div", { className: TraceChart_default.measurementRow, children: [
@@ -1967,7 +2119,8 @@ function TraceChart({
           /* @__PURE__ */ jsx("div", { className: TraceChart_default.measurementMeta, children: `Events ${measurement.eventCountBetween} \xB7 Reflective ${measurement.reflectiveEventCountBetween} \xB7 Splice \u03A3 ${formatPower(measurement.spliceLossSumBetween, 3)}` })
         ] }) : null,
         trace.length === 0 ? /* @__PURE__ */ jsx("div", { className: TraceChart_default.empty, children: "No trace points available" }) : null,
-        /* @__PURE__ */ jsx("div", { className: TraceChart_default.liveRegion, "aria-live": "polite", children: liveLabel })
+        /* @__PURE__ */ jsx("div", { className: TraceChart_default.liveRegion, "aria-live": "polite", children: liveLabel }),
+        /* @__PURE__ */ jsx("div", { className: TraceChart_default.liveRegion, "aria-live": "polite", children: exportLiveLabel })
       ]
     }
   );
@@ -2135,6 +2288,9 @@ function renderType(category) {
   if (category === "end-of-fiber") return "End of Fiber";
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
+function renderStatus(status) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 function ariaSortValue(sortState, key) {
   if (!sortState || sortState.key !== key) return "none";
   return sortState.direction === "asc" ? "ascending" : "descending";
@@ -2145,11 +2301,14 @@ function EventTable({
   xUnit = "km",
   thresholds = {},
   selectedEvent = null,
+  showExportActions = false,
+  exportFileBaseName = "otdr-events",
   onEventSelect
 }) {
   const normalized = useMemo3(() => normalizeSorResult(result), [result]);
   const [sortState, setSortState] = useState2(null);
   const rowRefs = useRef2([]);
+  const [exportMessage, setExportMessage] = useState2("");
   const rows = useMemo3(() => {
     const prepared = normalized.keyEvents.events.map((event, index) => {
       const category = classifyEvent(event);
@@ -2187,93 +2346,134 @@ function EventTable({
       row.scrollIntoView({ block: "nearest" });
     }
   }, [selectedEvent]);
+  const exportRows = useMemo3(
+    () => rows.map((row) => ({
+      index: row.index + 1,
+      distance: formatDistance(row.distance, xUnit),
+      type: renderType(row.type),
+      spliceLoss: `${row.spliceLoss.toFixed(3)} dB`,
+      reflLoss: `${row.reflLoss.toFixed(3)} dB`,
+      slope: `${row.slope.toFixed(3)} dB/km`,
+      status: renderStatus(row.status)
+    })),
+    [rows, xUnit]
+  );
+  const copyTable = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setExportMessage("Clipboard text copy is not supported in this browser.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(serializeEventsAsTsv(exportRows));
+      setExportMessage(`Copied ${exportRows.length} rows.`);
+    } catch {
+      setExportMessage("Failed to copy table.");
+    }
+  };
+  const downloadTable = () => {
+    try {
+      const filename = buildTimestampedFilename(exportFileBaseName, "csv");
+      const csv = serializeEventsAsCsv(exportRows);
+      downloadTextFile(csv, filename, "text/csv;charset=utf-8");
+      setExportMessage(`Downloaded ${filename}.`);
+    } catch {
+      setExportMessage("Failed to download CSV.");
+    }
+  };
   const summary = normalized.keyEvents.summary;
-  return /* @__PURE__ */ jsx5("div", { className: EventTable_default.wrapper, children: /* @__PURE__ */ jsxs4("table", { className: EventTable_default.table, children: [
-    /* @__PURE__ */ jsx5("thead", { className: EventTable_default.head, children: /* @__PURE__ */ jsxs4("tr", { children: [
-      /* @__PURE__ */ jsx5("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, "aria-sort": ariaSortValue(sortState, "index"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "index")), children: "#" }) }),
-      /* @__PURE__ */ jsx5("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, "aria-sort": ariaSortValue(sortState, "distance"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "distance")), children: "Distance" }) }),
-      /* @__PURE__ */ jsx5("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "type"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "type")), children: "Type" }) }),
-      /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "spliceLoss"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "spliceLoss")), children: "Splice Loss" }) }),
-      /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "reflLoss"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "reflLoss")), children: "Refl. Loss" }) }),
-      !compact ? /* @__PURE__ */ jsxs4(Fragment, { children: [
-        /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "slope"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "slope")), children: "Slope" }) }),
-        /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.statusCol, children: "Status" })
-      ] }) : null
-    ] }) }),
-    /* @__PURE__ */ jsx5("tbody", { className: EventTable_default.body, children: rows.map((row) => /* @__PURE__ */ jsxs4(
-      "tr",
-      {
-        ref: (node) => {
-          rowRefs.current[row.index] = node;
-        },
-        className: `${EventTable_default.row} ${selectedEvent === row.index ? EventTable_default.selected : ""}`,
-        onClick: () => onEventSelect?.(row.event, row.index),
-        tabIndex: 0,
-        onKeyDown: (event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            onEventSelect?.(row.event, row.index);
-            return;
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onEventSelect?.(null, null);
-            return;
-          }
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            rowRefs.current[row.index + 1]?.focus();
-            return;
-          }
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            rowRefs.current[Math.max(0, row.index - 1)]?.focus();
-          }
-        },
-        children: [
-          /* @__PURE__ */ jsx5("td", { className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, children: row.index + 1 }),
-          /* @__PURE__ */ jsx5("td", { className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, children: formatDistance(row.distance, xUnit) }),
-          /* @__PURE__ */ jsx5("td", { children: /* @__PURE__ */ jsxs4("span", { className: EventTable_default.typeCell, children: [
-            /* @__PURE__ */ jsx5("span", { className: EventTable_default.icon }),
-            renderType(row.type)
-          ] }) }),
-          /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, children: [
-            row.spliceLoss.toFixed(3),
-            " dB"
-          ] }),
-          /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, children: [
-            row.reflLoss.toFixed(3),
-            " dB"
-          ] }),
-          !compact ? /* @__PURE__ */ jsxs4(Fragment, { children: [
+  return /* @__PURE__ */ jsxs4("div", { className: EventTable_default.wrapper, children: [
+    showExportActions ? /* @__PURE__ */ jsxs4("div", { className: EventTable_default.actions, children: [
+      /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.actionButton, onClick: () => void copyTable(), children: "Copy Table" }),
+      /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.actionButton, onClick: downloadTable, children: "Download CSV" })
+    ] }) : null,
+    /* @__PURE__ */ jsx5("div", { className: EventTable_default.tableScroll, children: /* @__PURE__ */ jsxs4("table", { className: EventTable_default.table, children: [
+      /* @__PURE__ */ jsx5("thead", { className: EventTable_default.head, children: /* @__PURE__ */ jsxs4("tr", { children: [
+        /* @__PURE__ */ jsx5("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, "aria-sort": ariaSortValue(sortState, "index"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "index")), children: "#" }) }),
+        /* @__PURE__ */ jsx5("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, "aria-sort": ariaSortValue(sortState, "distance"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "distance")), children: "Distance" }) }),
+        /* @__PURE__ */ jsx5("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "type"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "type")), children: "Type" }) }),
+        /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "spliceLoss"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "spliceLoss")), children: "Splice Loss" }) }),
+        /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "reflLoss"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "reflLoss")), children: "Refl. Loss" }) }),
+        !compact ? /* @__PURE__ */ jsxs4(Fragment, { children: [
+          /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "slope"), children: /* @__PURE__ */ jsx5("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "slope")), children: "Slope" }) }),
+          /* @__PURE__ */ jsx5("th", { scope: "col", className: EventTable_default.statusCol, children: "Status" })
+        ] }) : null
+      ] }) }),
+      /* @__PURE__ */ jsx5("tbody", { className: EventTable_default.body, children: rows.map((row) => /* @__PURE__ */ jsxs4(
+        "tr",
+        {
+          ref: (node) => {
+            rowRefs.current[row.index] = node;
+          },
+          className: `${EventTable_default.row} ${selectedEvent === row.index ? EventTable_default.selected : ""}`,
+          onClick: () => onEventSelect?.(row.event, row.index),
+          tabIndex: 0,
+          onKeyDown: (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onEventSelect?.(row.event, row.index);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onEventSelect?.(null, null);
+              return;
+            }
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              rowRefs.current[row.index + 1]?.focus();
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              rowRefs.current[Math.max(0, row.index - 1)]?.focus();
+            }
+          },
+          children: [
+            /* @__PURE__ */ jsx5("td", { className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, children: row.index + 1 }),
+            /* @__PURE__ */ jsx5("td", { className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, children: formatDistance(row.distance, xUnit) }),
+            /* @__PURE__ */ jsx5("td", { children: /* @__PURE__ */ jsxs4("span", { className: EventTable_default.typeCell, children: [
+              /* @__PURE__ */ jsx5("span", { className: EventTable_default.icon }),
+              renderType(row.type)
+            ] }) }),
             /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, children: [
-              row.slope.toFixed(3),
-              " dB/km"
+              row.spliceLoss.toFixed(3),
+              " dB"
             ] }),
-            /* @__PURE__ */ jsx5("td", { className: EventTable_default.statusCol, children: /* @__PURE__ */ jsx5(StatusBadge, { status: row.status }) })
-          ] }) : null
-        ]
-      },
-      `${row.index}-${row.event.distance}-${row.event.type}`
-    )) }),
-    /* @__PURE__ */ jsx5("tfoot", { className: EventTable_default.footer, children: /* @__PURE__ */ jsxs4("tr", { children: [
-      /* @__PURE__ */ jsx5("td", { colSpan: compact ? 3 : 5, children: "Summary" }),
-      /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, colSpan: compact ? 2 : 1, children: [
-        "Total Loss: ",
-        summary.totalLoss.toFixed(3),
-        " dB"
-      ] }),
-      !compact ? /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, children: [
-        "ORL: ",
-        summary.orl.toFixed(3),
-        " dB"
-      ] }) : null
-    ] }) })
-  ] }) });
+            /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, children: [
+              row.reflLoss.toFixed(3),
+              " dB"
+            ] }),
+            !compact ? /* @__PURE__ */ jsxs4(Fragment, { children: [
+              /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, children: [
+                row.slope.toFixed(3),
+                " dB/km"
+              ] }),
+              /* @__PURE__ */ jsx5("td", { className: EventTable_default.statusCol, children: /* @__PURE__ */ jsx5(StatusBadge, { status: row.status }) })
+            ] }) : null
+          ]
+        },
+        `${row.index}-${row.event.distance}-${row.event.type}`
+      )) }),
+      /* @__PURE__ */ jsx5("tfoot", { className: EventTable_default.footer, children: /* @__PURE__ */ jsxs4("tr", { children: [
+        /* @__PURE__ */ jsx5("td", { colSpan: compact ? 3 : 5, children: "Summary" }),
+        /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, colSpan: compact ? 2 : 1, children: [
+          "Total Loss: ",
+          summary.totalLoss.toFixed(3),
+          " dB"
+        ] }),
+        !compact ? /* @__PURE__ */ jsxs4("td", { className: EventTable_default.numeric, children: [
+          "ORL: ",
+          summary.orl.toFixed(3),
+          " dB"
+        ] }) : null
+      ] }) })
+    ] }) }),
+    /* @__PURE__ */ jsx5("div", { className: EventTable_default.liveRegion, "aria-live": "polite", children: exportMessage })
+  ] });
 }
 
 // src/components/LossBudgetChart.tsx
-import { useMemo as useMemo4 } from "react";
+import { useMemo as useMemo4, useState as useState3 } from "react";
 
 // src/components/LossBudgetChart.module.css
 var LossBudgetChart_default = {};
@@ -2283,6 +2483,24 @@ import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
 function parseNumber3(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+function cycleSortState2(current, key) {
+  if (!current || current.key !== key) {
+    return { key, direction: "asc" };
+  }
+  if (current.direction === "asc") {
+    return { key, direction: "desc" };
+  }
+  return null;
+}
+function sortIndicator(sortState, key) {
+  if (!sortState || sortState.key !== key) return "\u2195";
+  return sortState.direction === "asc" ? "\u2191" : "\u2193";
+}
+function statusRank(status) {
+  if (status === "fail") return 2;
+  if (status === "warn") return 1;
+  return 0;
 }
 function clampPercent(value) {
   if (!Number.isFinite(value)) return 0;
@@ -2320,10 +2538,12 @@ function LossBudgetChart({
   onBarClick,
   vertical = false
 }) {
+  const [sortState, setSortState] = useState3(null);
   const rows = useMemo4(() => {
     const withLoss = events.map((event, index) => ({
       event,
       index,
+      distance: parseNumber3(event.distance),
       spliceLoss: parseNumber3(event.spliceLoss),
       absLoss: Math.abs(parseNumber3(event.spliceLoss))
     })).filter((row) => row.spliceLoss !== 0);
@@ -2348,12 +2568,34 @@ function LossBudgetChart({
           widthPct: clampPercent(rawPct),
           overflow: rawPct > 100
         };
+      }).sort((a, b) => {
+        if (!sortState) return a.index - b.index;
+        const multiplier = sortState.direction === "asc" ? 1 : -1;
+        if (sortState.key === "index") {
+          return (a.index - b.index) * multiplier;
+        }
+        if (sortState.key === "distance") {
+          return (a.distance - b.distance) * multiplier;
+        }
+        if (sortState.key === "spliceLoss") {
+          return (a.absLoss - b.absLoss) * multiplier;
+        }
+        const statusDiff = (statusRank(a.status) - statusRank(b.status)) * multiplier;
+        if (statusDiff !== 0) return statusDiff;
+        return (a.index - b.index) * multiplier;
       })
     };
-  }, [events, thresholds]);
+  }, [events, sortState, thresholds]);
   const warnPct = rows.maxLoss > 0 && thresholds.spliceLoss?.warn ? clampPercent(thresholds.spliceLoss.warn / rows.maxLoss * 100) : null;
   const failPct = rows.maxLoss > 0 && thresholds.spliceLoss?.fail ? clampPercent(thresholds.spliceLoss.fail / rows.maxLoss * 100) : null;
   return /* @__PURE__ */ jsxs5("section", { className: `${LossBudgetChart_default.root} ${vertical ? LossBudgetChart_default.vertical : ""}`, "aria-label": "Loss budget chart", children: [
+    /* @__PURE__ */ jsxs5("div", { className: LossBudgetChart_default.toolbar, role: "group", "aria-label": "Sort loss budget bars", children: [
+      /* @__PURE__ */ jsx6("span", { className: LossBudgetChart_default.toolbarLabel, children: "Sort" }),
+      /* @__PURE__ */ jsx6("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "index")), children: `# ${sortIndicator(sortState, "index")}` }),
+      /* @__PURE__ */ jsx6("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "distance")), children: `Distance ${sortIndicator(sortState, "distance")}` }),
+      /* @__PURE__ */ jsx6("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "spliceLoss")), children: `Splice ${sortIndicator(sortState, "spliceLoss")}` }),
+      /* @__PURE__ */ jsx6("button", { type: "button", className: LossBudgetChart_default.sortButton, onClick: () => setSortState((current) => cycleSortState2(current, "status")), children: `Status ${sortIndicator(sortState, "status")}` })
+    ] }),
     rows.dominantScaleActive ? /* @__PURE__ */ jsx6("p", { className: LossBudgetChart_default.scaleHint, children: "Scaled for readability. Bars with an overflow marker exceed display scale." }) : null,
     /* @__PURE__ */ jsx6("div", { className: LossBudgetChart_default.chart, children: rows.rows.map((row) => /* @__PURE__ */ jsxs5(
       "button",
@@ -2397,7 +2639,7 @@ import {
   useEffect as useEffect3,
   useMemo as useMemo5,
   useRef as useRef3,
-  useState as useState3
+  useState as useState4
 } from "react";
 
 // src/components/FiberMap.module.css
@@ -2465,9 +2707,9 @@ function FiberMap({
 }) {
   const markerRefs = useRef3([]);
   const containerRef = useRef3(null);
-  const [hoveredIndex, setHoveredIndex] = useState3(null);
-  const [zoomLevel, setZoomLevel] = useState3(MIN_ZOOM);
-  const [baseHorizontalWidth, setBaseHorizontalWidth] = useState3(HORIZONTAL_DEFAULT_WIDTH);
+  const [hoveredIndex, setHoveredIndex] = useState4(null);
+  const [zoomLevel, setZoomLevel] = useState4(MIN_ZOOM);
+  const [baseHorizontalWidth, setBaseHorizontalWidth] = useState4(HORIZONTAL_DEFAULT_WIDTH);
   const isVertical = orientation === "vertical";
   useEffect3(() => {
     setHoveredIndex(null);
@@ -2778,7 +3020,7 @@ function FiberMap({
 }
 
 // src/components/SorDropZone.tsx
-import { useRef as useRef4, useState as useState4 } from "react";
+import { useRef as useRef4, useState as useState5 } from "react";
 import { parseSor } from "sor-reader/browser";
 
 // src/components/SorDropZone.module.css
@@ -2792,9 +3034,9 @@ async function parseFile(file, parseOptions) {
 }
 function SorDropZone({ multiple = false, parseOptions, children, onResult, onError }) {
   const inputRef = useRef4(null);
-  const [dragHover, setDragHover] = useState4(false);
-  const [loading, setLoading] = useState4(false);
-  const [error, setError] = useState4(null);
+  const [dragHover, setDragHover] = useState5(false);
+  const [loading, setLoading] = useState5(false);
+  const [error, setError] = useState5(null);
   const className = [
     SorDropZone_default.root,
     dragHover ? SorDropZone_default.hover : "",
@@ -2871,11 +3113,11 @@ function SorDropZone({ multiple = false, parseOptions, children, onResult, onErr
 }
 
 // src/hooks/useEventSelection.tsx
-import { createContext, useContext, useMemo as useMemo6, useState as useState5 } from "react";
+import { createContext, useContext, useMemo as useMemo6, useState as useState6 } from "react";
 import { jsx as jsx9 } from "react/jsx-runtime";
 var EventSelectionContext = createContext(null);
 function EventSelectionProvider({ children }) {
-  const [selectedIndex, setSelectedIndex] = useState5(null);
+  const [selectedIndex, setSelectedIndex] = useState6(null);
   const value = useMemo6(
     () => ({
       selectedIndex,
@@ -3012,7 +3254,7 @@ import {
   useImperativeHandle,
   useMemo as useMemo10,
   useRef as useRef5,
-  useState as useState6
+  useState as useState7
 } from "react";
 
 // src/components/TraceViewer/TraceViewer.module.css
@@ -3021,7 +3263,7 @@ var TraceViewer_default = {};
 // src/components/TraceViewer/TraceViewer.tsx
 import { jsx as jsx15, jsxs as jsxs9 } from "react/jsx-runtime";
 function useCompactLayout(layout, hostRef) {
-  const [compact, setCompact] = useState6(layout === "compact");
+  const [compact, setCompact] = useState7(layout === "compact");
   useEffect4(() => {
     if (layout === "compact") {
       setCompact(true);
@@ -3055,7 +3297,7 @@ function TraceViewerInner({
   const normalized = useMemo10(() => normalizeSorResult(result), [result]);
   const hostRef = useRef5(null);
   const { selectedIndex, select } = useEventSelection();
-  const [measurementCursors, setMeasurementCursors] = useState6({
+  const [measurementCursors, setMeasurementCursors] = useState7({
     a: null,
     b: null
   });
@@ -3064,6 +3306,7 @@ function TraceViewerInner({
     () => computeCursorMeasurement(normalized.trace, normalized.keyEvents.events, measurementCursors),
     [measurementCursors, normalized.keyEvents.events, normalized.trace]
   );
+  const exportBaseName = normalized.filename ? normalized.filename.replace(/\.[^.]+$/u, "") : "otdr-trace";
   useEffect4(() => {
     onExposeApi({
       select,
@@ -3094,6 +3337,8 @@ function TraceViewerInner({
           xUnit,
           selectedEvent: selectedIndex,
           measurementCursors,
+          showExportActions: true,
+          exportFileBaseName: `${exportBaseName}-chart`,
           onEventClick: (_, index) => select(index),
           onMeasurementCursorsChange: setMeasurementCursors
         }
@@ -3131,6 +3376,8 @@ function TraceViewerInner({
         xUnit,
         thresholds: thresholds?.event,
         selectedEvent: selectedIndex,
+        showExportActions: true,
+        exportFileBaseName: `${exportBaseName}-events`,
         onEventSelect: (_, index) => select(index)
       }
     ) }) : null,
@@ -3202,6 +3449,11 @@ export {
   assessSummary,
   lttb,
   computeCursorMeasurement,
+  serializeEventsAsTsv,
+  serializeEventsAsCsv,
+  downloadBlob,
+  downloadTextFile,
+  buildTimestampedFilename,
   normalizeSorResult,
   getDevicePixelRatio,
   configureHiDpiCanvas,
@@ -3248,4 +3500,4 @@ export {
   MeasurementInfoPanel,
   TraceViewer
 };
-//# sourceMappingURL=chunk-KAUXE3SD.js.map
+//# sourceMappingURL=chunk-7DEMIZ3T.js.map

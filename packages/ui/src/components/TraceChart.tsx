@@ -18,6 +18,7 @@ import { getZoomAxisFromModifiers, panViewportByPixels, zoomViewportAtPixel, typ
 import { createRenderScheduler, renderFrame, type RenderScheduler } from "../canvas/render-pipeline.js";
 import { computeCursorMeasurement } from "../utils/cursor-measurement.js";
 import { formatDistance, formatPower, formatSlope } from "../utils/formatters.js";
+import { buildTimestampedFilename, downloadBlob } from "../utils/export.js";
 import styles from "./TraceChart.module.css";
 
 export interface TraceChartProps {
@@ -31,6 +32,8 @@ export interface TraceChartProps {
   selectedEvent?: number | null;
   measurementCursors?: MeasurementCursors;
   defaultMeasurementCursors?: MeasurementCursors;
+  showExportActions?: boolean;
+  exportFileBaseName?: string;
   className?: string;
   onPointHover?: (point: TracePoint, index: number) => void;
   onEventClick?: (event: KeyEvent, index: number) => void;
@@ -133,6 +136,18 @@ function buildMeasurementCursor(state: CrosshairState): MeasurementCursor {
   };
 }
 
+function toPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error("Failed to render chart PNG"));
+    }, "image/png");
+  });
+}
+
 export function TraceChart({
   trace,
   events = [],
@@ -144,6 +159,8 @@ export function TraceChart({
   selectedEvent = null,
   measurementCursors: controlledMeasurementCursors,
   defaultMeasurementCursors,
+  showExportActions = false,
+  exportFileBaseName = "otdr-trace",
   className,
   onPointHover,
   onEventClick,
@@ -210,6 +227,9 @@ export function TraceChart({
   const renderRef = useRef<() => void>(() => undefined);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [liveLabel, setLiveLabel] = useState("");
+  const [exportLiveLabel, setExportLiveLabel] = useState("");
+  const [isCopyingChart, setIsCopyingChart] = useState(false);
+  const [isDownloadingChart, setIsDownloadingChart] = useState(false);
   const keyboardMarkerIndexRef = useRef<number>(-1);
   const hoveredMarkerIndexRef = useRef<number | null>(null);
 
@@ -423,6 +443,60 @@ export function TraceChart({
     const canvasRect = getCanvasRect(handle.canvas);
     const next = panViewportByPixels(viewportRef.current, boundsRef.current, deltaX, deltaY, canvasRect);
     setViewport(next);
+  };
+
+  const copyChart = async (): Promise<void> => {
+    if (isCopyingChart) return;
+
+    const canvas = canvasHandleRef.current?.canvas;
+    if (!canvas) {
+      setExportLiveLabel("Chart is not ready for copy.");
+      return;
+    }
+
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.clipboard?.write ||
+      typeof ClipboardItem === "undefined"
+    ) {
+      setExportLiveLabel("PNG clipboard copy is not supported in this browser.");
+      return;
+    }
+
+    setIsCopyingChart(true);
+
+    try {
+      const blob = await toPngBlob(canvas);
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      setExportLiveLabel("Chart copied as PNG.");
+    } catch {
+      setExportLiveLabel("Failed to copy chart image.");
+    } finally {
+      setIsCopyingChart(false);
+    }
+  };
+
+  const downloadChart = async (): Promise<void> => {
+    if (isDownloadingChart) return;
+
+    const canvas = canvasHandleRef.current?.canvas;
+    if (!canvas) {
+      setExportLiveLabel("Chart is not ready for download.");
+      return;
+    }
+
+    setIsDownloadingChart(true);
+
+    try {
+      const blob = await toPngBlob(canvas);
+      const filename = buildTimestampedFilename(exportFileBaseName, "png");
+      downloadBlob(blob, filename);
+      setExportLiveLabel(`Downloaded ${filename}.`);
+    } catch {
+      setExportLiveLabel("Failed to download chart PNG.");
+    } finally {
+      setIsDownloadingChart(false);
+    }
   };
 
   useEffect(() => {
@@ -792,6 +866,26 @@ export function TraceChart({
         }
       }}
     >
+      {showExportActions ? (
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={() => void copyChart()}
+            disabled={isCopyingChart}
+          >
+            {isCopyingChart ? "Copying..." : "Copy Chart"}
+          </button>
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={() => void downloadChart()}
+            disabled={isDownloadingChart}
+          >
+            {isDownloadingChart ? "Downloading..." : "Download PNG"}
+          </button>
+        </div>
+      ) : null}
       {tooltip ? (
         <div className={styles.tooltip} style={{ left: tooltip.left, top: tooltip.top }}>
           {tooltip.text}
@@ -814,6 +908,9 @@ export function TraceChart({
       {trace.length === 0 ? <div className={styles.empty}>No trace points available</div> : null}
       <div className={styles.liveRegion} aria-live="polite">
         {liveLabel}
+      </div>
+      <div className={styles.liveRegion} aria-live="polite">
+        {exportLiveLabel}
       </div>
     </div>
   );

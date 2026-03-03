@@ -6,77 +6,12 @@ var import_react14 = require("react");
 // src/components/TraceChart.tsx
 var import_react = require("react");
 
-// src/canvas/canvas-manager.ts
-function resolveDocument(container) {
-  if (container.ownerDocument) {
-    return container.ownerDocument;
-  }
-  if (typeof document !== "undefined") {
-    return document;
-  }
-  throw new Error("No document available to create canvas");
-}
-function getDevicePixelRatio() {
-  if (typeof window === "undefined") return 1;
-  const ratio = window.devicePixelRatio;
-  if (!Number.isFinite(ratio) || ratio <= 0) return 1;
-  return ratio;
-}
-function configureHiDpiCanvas(canvas, ctx, width, height, dpr = getDevicePixelRatio()) {
-  const safeWidth = Math.max(1, width);
-  const safeHeight = Math.max(1, height);
-  const safeDpr = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
-  canvas.width = Math.round(safeWidth * safeDpr);
-  canvas.height = Math.round(safeHeight * safeDpr);
-  canvas.style.width = `${safeWidth}px`;
-  canvas.style.height = `${safeHeight}px`;
-  ctx.setTransform(safeDpr, 0, 0, safeDpr, 0, 0);
-  return {
-    dpr: safeDpr,
-    pixelWidth: canvas.width,
-    pixelHeight: canvas.height
-  };
-}
-function createCanvas(container, width, height, options = {}) {
-  const doc = resolveDocument(container);
-  const canvas = doc.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    throw new Error("Failed to acquire 2D canvas context");
-  }
-  container.appendChild(canvas);
-  configureHiDpiCanvas(canvas, ctx, width, height);
-  let resizeObserver = null;
-  const autoResize = options.autoResize ?? false;
-  const resize = (nextWidth, nextHeight) => {
-    configureHiDpiCanvas(canvas, ctx, nextWidth, nextHeight);
-  };
-  if (autoResize && typeof ResizeObserver !== "undefined") {
-    resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const nextWidth = entry.contentRect.width;
-      const nextHeight = height > 0 ? height : entry.contentRect.height;
-      resize(nextWidth, nextHeight);
-    });
-    resizeObserver.observe(container);
-  }
-  const dispose = () => {
-    resizeObserver?.disconnect();
-    resizeObserver = null;
-    if (canvas.parentElement === container) {
-      container.removeChild(canvas);
-    }
-  };
-  return { canvas, ctx, resize, dispose };
-}
-
 // src/canvas/coordinates.ts
 var MARGIN = {
   top: 20,
   right: 20,
   bottom: 50,
-  left: 70
+  left: 88
 };
 var DEFAULT_VIEWPORT = {
   xMin: 0,
@@ -186,6 +121,177 @@ function clampViewport(viewport, dataBounds) {
   };
 }
 
+// src/canvas/measurement-cursors.ts
+var DEFAULT_STYLE = {
+  cursorAColor: "#7c3aed",
+  cursorBColor: "#ea580c",
+  cursorSpanColor: "rgba(124, 58, 237, 0.12)",
+  labelBackground: "rgba(248, 250, 252, 0.94)",
+  labelTextColor: "#0f172a",
+  labelBorder: "rgba(15, 23, 42, 0.2)"
+};
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+function toCursorPoints(cursors, viewport, canvasRect) {
+  const points = [];
+  if (cursors.a) {
+    const position = dataToPixel(cursors.a.distance, cursors.a.power, viewport, canvasRect);
+    points.push({ key: "a", px: position.px, py: position.py });
+  }
+  if (cursors.b) {
+    const position = dataToPixel(cursors.b.distance, cursors.b.power, viewport, canvasRect);
+    points.push({ key: "b", px: position.px, py: position.py });
+  }
+  return points;
+}
+function hitTestMeasurementCursors(cursors, viewport, canvasRect, px, py, radius = 12) {
+  const points = toCursorPoints(cursors, viewport, canvasRect);
+  if (points.length === 0) return null;
+  const radiusSq = radius * radius;
+  let nearest = null;
+  for (const point of points) {
+    const dx = point.px - px;
+    const dy = point.py - py;
+    const distanceSq = dx * dx + dy * dy;
+    if (distanceSq > radiusSq) continue;
+    if (!nearest || distanceSq < nearest.distanceSq) {
+      nearest = { key: point.key, distanceSq };
+    }
+  }
+  return nearest?.key ?? null;
+}
+function drawCursor(ctx, point, plotRect, color, style) {
+  const x = Math.round(point.px) + 0.5;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x, plotRect.top);
+  ctx.lineTo(x, plotRect.bottom);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.24;
+  ctx.arc(point.px, point.py, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.fillStyle = color;
+  ctx.arc(point.px, point.py, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+  const label = point.key.toUpperCase();
+  ctx.font = "700 11px sans-serif";
+  const labelWidth = ctx.measureText(label).width + 12;
+  const labelHeight = 18;
+  const baselineOffset = point.key === "a" ? 7 : 29;
+  const labelX = clamp(point.px - labelWidth / 2, plotRect.left + 4, plotRect.right - labelWidth - 4);
+  const labelY = plotRect.top + baselineOffset;
+  ctx.fillStyle = style.labelBackground;
+  ctx.strokeStyle = style.labelBorder;
+  ctx.lineWidth = 1;
+  ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+  ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
+  ctx.fillStyle = style.labelTextColor;
+  ctx.fillText(label, labelX + (labelWidth - ctx.measureText(label).width) / 2, labelY + 12.5);
+  ctx.restore();
+}
+function drawMeasurementCursors(ctx, cursors, viewport, canvasRect, style = {}) {
+  const points = toCursorPoints(cursors, viewport, canvasRect);
+  if (points.length === 0) return;
+  const plotRect = getPlotRect(canvasRect);
+  const mergedStyle = {
+    ...DEFAULT_STYLE,
+    ...style
+  };
+  const pointA = points.find((point) => point.key === "a");
+  const pointB = points.find((point) => point.key === "b");
+  if (pointA && pointB) {
+    const left = Math.min(pointA.px, pointB.px);
+    const width = Math.abs(pointA.px - pointB.px);
+    ctx.save();
+    ctx.fillStyle = mergedStyle.cursorSpanColor;
+    ctx.fillRect(left, plotRect.top, width, plotRect.height);
+    ctx.restore();
+  }
+  for (const point of points) {
+    drawCursor(
+      ctx,
+      point,
+      plotRect,
+      point.key === "a" ? mergedStyle.cursorAColor : mergedStyle.cursorBColor,
+      mergedStyle
+    );
+  }
+}
+
+// src/canvas/canvas-manager.ts
+function resolveDocument(container) {
+  if (container.ownerDocument) {
+    return container.ownerDocument;
+  }
+  if (typeof document !== "undefined") {
+    return document;
+  }
+  throw new Error("No document available to create canvas");
+}
+function getDevicePixelRatio() {
+  if (typeof window === "undefined") return 1;
+  const ratio = window.devicePixelRatio;
+  if (!Number.isFinite(ratio) || ratio <= 0) return 1;
+  return ratio;
+}
+function configureHiDpiCanvas(canvas, ctx, width, height, dpr = getDevicePixelRatio()) {
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  const safeDpr = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+  canvas.width = Math.round(safeWidth * safeDpr);
+  canvas.height = Math.round(safeHeight * safeDpr);
+  canvas.style.width = `${safeWidth}px`;
+  canvas.style.height = `${safeHeight}px`;
+  ctx.setTransform(safeDpr, 0, 0, safeDpr, 0, 0);
+  return {
+    dpr: safeDpr,
+    pixelWidth: canvas.width,
+    pixelHeight: canvas.height
+  };
+}
+function createCanvas(container, width, height, options = {}) {
+  const doc = resolveDocument(container);
+  const canvas = doc.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Failed to acquire 2D canvas context");
+  }
+  container.appendChild(canvas);
+  configureHiDpiCanvas(canvas, ctx, width, height);
+  let resizeObserver = null;
+  const autoResize = options.autoResize ?? false;
+  const resize = (nextWidth, nextHeight) => {
+    configureHiDpiCanvas(canvas, ctx, nextWidth, nextHeight);
+  };
+  if (autoResize && typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const nextWidth = entry.contentRect.width;
+      const nextHeight = height > 0 ? height : entry.contentRect.height;
+      resize(nextWidth, nextHeight);
+    });
+    resizeObserver.observe(container);
+  }
+  const dispose = () => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+    if (canvas.parentElement === container) {
+      container.removeChild(canvas);
+    }
+  };
+  return { canvas, ctx, resize, dispose };
+}
+
 // src/types/units.ts
 var DISTANCE_CONVERSION_FACTORS = {
   km: 1,
@@ -229,6 +335,9 @@ function formatDistance(valueKm, unit, precision) {
 }
 function formatPower(dB, precision = 3) {
   return `${formatFixed(dB, precision)} dB`;
+}
+function formatSlope(dBkm, precision = 3) {
+  return `${formatFixed(dBkm, precision)} dB/km`;
 }
 function formatWavelength(nm) {
   const trimmed = nm.trim();
@@ -439,6 +548,7 @@ function drawMarkerShape(ctx, category, px, py, radius) {
 }
 function computeEventMarkers(events, trace, viewport, canvasRect) {
   if (events.length === 0 || trace.length === 0) return [];
+  const plotRect = getPlotRect(canvasRect);
   const markers = [];
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
@@ -450,6 +560,9 @@ function computeEventMarkers(events, trace, viewport, canvasRect) {
     const tracePoint = trace[traceIndex];
     if (!tracePoint) continue;
     const position = dataToPixel(distance, tracePoint.power, viewport, canvasRect);
+    if (position.px < plotRect.left || position.px > plotRect.right || position.py < plotRect.top || position.py > plotRect.bottom) {
+      continue;
+    }
     markers.push({
       index,
       event,
@@ -474,6 +587,10 @@ function drawEventMarkers(ctx, markers, canvasRect, selectedIndex = null, hovere
     }
   };
   const dense = markers.length > 20;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+  ctx.clip();
   for (const marker of markers) {
     const isSelected = selectedIndex === marker.index;
     const isHovered = hoveredIndex === marker.index;
@@ -515,16 +632,23 @@ function drawEventMarkers(ctx, markers, canvasRect, selectedIndex = null, hovere
       ctx.fill();
       ctx.stroke();
     }
-    const shouldShowLabel = !dense || isPriority || marker.index % 2 === 0;
-    if (shouldShowLabel) {
-      const label = `${marker.index + 1}`;
-      ctx.font = isPriority ? "600 11px sans-serif" : "10px sans-serif";
-      const labelWidth = ctx.measureText(label).width;
-      ctx.fillStyle = isPriority ? mergedStyle.labelColor : mergedStyle.mutedLabelColor;
-      ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
-    }
     ctx.restore();
   }
+  ctx.restore();
+  ctx.save();
+  for (const marker of markers) {
+    const isSelected = selectedIndex === marker.index;
+    const isHovered = hoveredIndex === marker.index;
+    const isPriority = isSelected || isHovered;
+    const shouldShowLabel = !dense || isPriority || marker.index % 2 === 0;
+    if (!shouldShowLabel) continue;
+    const label = `${marker.index + 1}`;
+    ctx.font = isPriority ? "600 11px sans-serif" : "10px sans-serif";
+    const labelWidth = ctx.measureText(label).width;
+    ctx.fillStyle = isPriority ? mergedStyle.labelColor : mergedStyle.mutedLabelColor;
+    ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
+  }
+  ctx.restore();
 }
 function hitTestEventMarkers(markers, px, py, hitRadius = 12) {
   const radiusSq = hitRadius * hitRadius;
@@ -717,11 +841,12 @@ function drawYAxis(ctx, viewport, canvasRect, style = {}) {
     const labelWidth = ctx.measureText(label).width;
     ctx.fillText(label, plotRect.left - labelWidth - 10, axisY + 4);
   }
-  ctx.translate(20, plotRect.top + plotRect.height / 2);
+  ctx.translate(16, plotRect.top + plotRect.height / 2);
   ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
   const title = "Power (dB)";
-  const titleWidth = ctx.measureText(title).width;
-  ctx.fillText(title, -titleWidth / 2, 0);
+  ctx.fillText(title, 0, 0);
   ctx.restore();
 }
 
@@ -920,6 +1045,72 @@ function createRenderScheduler(render) {
   };
 }
 
+// src/utils/cursor-measurement.ts
+function parseDistance2(distance) {
+  const parsed = Number.parseFloat(distance);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+function parseValue(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function normalizeCursors(cursors) {
+  if (!cursors.a || !cursors.b) return null;
+  return {
+    a: cursors.a,
+    b: cursors.b
+  };
+}
+function countEventsBetween(events, minDistance, maxDistance) {
+  let eventCountBetween = 0;
+  let reflectiveEventCountBetween = 0;
+  let spliceLossSumBetween = 0;
+  for (const event of events) {
+    const distance = parseDistance2(event.distance);
+    if (!Number.isFinite(distance)) continue;
+    if (distance < minDistance || distance > maxDistance) continue;
+    eventCountBetween += 1;
+    const category = classifyEvent(event);
+    if (category === "reflection" || category === "end-of-fiber") {
+      reflectiveEventCountBetween += 1;
+    }
+    spliceLossSumBetween += parseValue(event.spliceLoss);
+  }
+  return {
+    eventCountBetween,
+    reflectiveEventCountBetween,
+    spliceLossSumBetween
+  };
+}
+function computeCursorMeasurement(trace, events, cursors) {
+  if (trace.length === 0) return null;
+  const normalized = normalizeCursors(cursors);
+  if (!normalized) return null;
+  const { a, b } = normalized;
+  const start = a.distance <= b.distance ? a : b;
+  const end = a.distance <= b.distance ? b : a;
+  const deltaDistance = Math.abs(b.distance - a.distance);
+  const deltaPower = b.power - a.power;
+  const avgAttenuationDbPerKm = deltaDistance > 0 ? deltaPower / deltaDistance : null;
+  const counts = countEventsBetween(events, start.distance, end.distance);
+  return {
+    a,
+    b,
+    start,
+    end,
+    distanceA: a.distance,
+    distanceB: b.distance,
+    deltaDistance,
+    powerA: a.power,
+    powerB: b.power,
+    deltaPower,
+    avgAttenuationDbPerKm,
+    eventCountBetween: counts.eventCountBetween,
+    reflectiveEventCountBetween: counts.reflectiveEventCountBetween,
+    spliceLossSumBetween: counts.spliceLossSumBetween
+  };
+}
+
 // src/components/TraceChart.module.css
 var TraceChart_default = {};
 
@@ -943,20 +1134,48 @@ function computeMinSpanX(trace) {
   if (!first || !last) return 1e-3;
   return Math.max(1e-3, last.distance - first.distance);
 }
-function parseDistance2(value) {
+function parseDistance3(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
-function clamp(value, min, max) {
+function clamp2(value, min, max) {
   if (max < min) return min;
   return Math.min(Math.max(value, min), max);
 }
 function estimateTooltipSize(text) {
   const lines = text.split("\n");
   const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
-  const width = clamp(24 + longest * 7, 160, 320);
+  const width = clamp2(24 + longest * 7, 160, 320);
   const height = 12 + lines.length * 18;
   return { width, height };
+}
+function createEmptyMeasurementCursors() {
+  return {
+    a: null,
+    b: null
+  };
+}
+function normalizeMeasurementCursors(value) {
+  if (!value) return createEmptyMeasurementCursors();
+  return {
+    a: value.a ?? null,
+    b: value.b ?? null
+  };
+}
+function isSameCursor(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.distance === b.distance && a.power === b.power && a.traceIndex === b.traceIndex;
+}
+function areMeasurementCursorsEqual(a, b) {
+  return isSameCursor(a.a, b.a) && isSameCursor(a.b, b.b);
+}
+function buildMeasurementCursor(state) {
+  return {
+    distance: state.point.distance,
+    power: state.point.power,
+    traceIndex: state.index
+  };
 }
 function TraceChart({
   trace,
@@ -967,9 +1186,12 @@ function TraceChart({
   height = 360,
   xUnit = "km",
   selectedEvent = null,
+  measurementCursors: controlledMeasurementCursors,
+  defaultMeasurementCursors,
   className,
   onPointHover,
   onEventClick,
+  onMeasurementCursorsChange,
   onZoomChange
 }) {
   const containerRef = (0, import_react.useRef)(null);
@@ -982,6 +1204,7 @@ function TraceChart({
   const selectedEventRef = (0, import_react.useRef)(selectedEvent);
   const onPointHoverRef = (0, import_react.useRef)(onPointHover);
   const onEventClickRef = (0, import_react.useRef)(onEventClick);
+  const onMeasurementCursorsChangeRef = (0, import_react.useRef)(onMeasurementCursorsChange);
   const onZoomChangeRef = (0, import_react.useRef)(onZoomChange);
   traceRef.current = trace;
   eventsRef.current = events;
@@ -990,24 +1213,48 @@ function TraceChart({
   selectedEventRef.current = selectedEvent;
   onPointHoverRef.current = onPointHover;
   onEventClickRef.current = onEventClick;
+  onMeasurementCursorsChangeRef.current = onMeasurementCursorsChange;
   onZoomChangeRef.current = onZoomChange;
+  const isMeasurementControlled = controlledMeasurementCursors !== void 0;
+  const normalizedControlledMeasurementCursors = (0, import_react.useMemo)(
+    () => normalizeMeasurementCursors(controlledMeasurementCursors),
+    [controlledMeasurementCursors]
+  );
+  const [uncontrolledMeasurementCursors, setUncontrolledMeasurementCursors] = (0, import_react.useState)(
+    () => normalizeMeasurementCursors(defaultMeasurementCursors)
+  );
+  const resolvedMeasurementCursors = isMeasurementControlled ? normalizedControlledMeasurementCursors : uncontrolledMeasurementCursors;
   const baseViewport = (0, import_react.useMemo)(() => computeViewport(trace), [trace]);
   const [viewport, setViewportState] = (0, import_react.useState)(baseViewport);
   const viewportRef = (0, import_react.useRef)(viewport);
   const boundsRef = (0, import_react.useRef)(computeViewport(trace, 0));
   const crosshairRef = (0, import_react.useRef)(null);
   const markersRef = (0, import_react.useRef)([]);
+  const measurementCursorsRef = (0, import_react.useRef)(resolvedMeasurementCursors);
   const dragRef = (0, import_react.useRef)({
     active: false,
     pointerId: null,
     lastX: 0,
-    lastY: 0
+    lastY: 0,
+    moved: false
   });
+  const cursorDragRef = (0, import_react.useRef)({
+    active: false,
+    pointerId: null,
+    key: null,
+    moved: false
+  });
+  const suppressClickRef = (0, import_react.useRef)(false);
   const renderRef = (0, import_react.useRef)(() => void 0);
   const [tooltip, setTooltip] = (0, import_react.useState)(null);
   const [liveLabel, setLiveLabel] = (0, import_react.useState)("");
   const keyboardMarkerIndexRef = (0, import_react.useRef)(-1);
   const hoveredMarkerIndexRef = (0, import_react.useRef)(null);
+  measurementCursorsRef.current = resolvedMeasurementCursors;
+  const measurement = (0, import_react.useMemo)(
+    () => computeCursorMeasurement(trace, events, resolvedMeasurementCursors),
+    [events, resolvedMeasurementCursors, trace]
+  );
   const setViewport = (next, notify = true) => {
     viewportRef.current = next;
     setViewportState(next);
@@ -1015,6 +1262,30 @@ function TraceChart({
       onZoomChangeRef.current?.(next);
     }
     schedulerRef.current?.scheduleRender();
+  };
+  const setMeasurementCursors = (next, notify = true) => {
+    const normalized = normalizeMeasurementCursors(next);
+    if (areMeasurementCursorsEqual(measurementCursorsRef.current, normalized)) return;
+    measurementCursorsRef.current = normalized;
+    if (!isMeasurementControlled) {
+      setUncontrolledMeasurementCursors(normalized);
+    }
+    if (notify) {
+      onMeasurementCursorsChangeRef.current?.(normalized);
+    }
+    schedulerRef.current?.scheduleRender();
+  };
+  const resolveMeasurementCursorAtPointer = (pointerX, pointerY, canvasRect) => {
+    const crosshair = resolveCrosshairState(
+      traceRef.current,
+      pointerX,
+      pointerY,
+      viewportRef.current,
+      canvasRect,
+      xUnitRef.current
+    );
+    if (!crosshair) return null;
+    return buildMeasurementCursor(crosshair);
   };
   (0, import_react.useEffect)(() => {
     boundsRef.current = computeViewport(trace, 0);
@@ -1033,7 +1304,7 @@ function TraceChart({
     if (selectedEvent === null || selectedEvent < 0) return;
     const event = events[selectedEvent];
     if (!event) return;
-    const centerX = parseDistance2(event.distance);
+    const centerX = parseDistance3(event.distance);
     if (!Number.isFinite(centerX)) return;
     const current = viewportRef.current;
     const currentSpan = Math.max(computeMinSpanX(traceRef.current), current.xMax - current.xMin);
@@ -1076,6 +1347,9 @@ function TraceChart({
     const markerEnd = readCssVariable(computed, "--otdr-marker-end", "#111827");
     const markerManual = readCssVariable(computed, "--otdr-marker-manual", "#a16207");
     const markerUnknown = readCssVariable(computed, "--otdr-marker-unknown", "#64748b");
+    const cursorAColor = readCssVariable(computed, "--otdr-cursor-a", "#7c3aed");
+    const cursorBColor = readCssVariable(computed, "--otdr-cursor-b", "#ea580c");
+    const cursorSpanColor = readCssVariable(computed, "--otdr-cursor-span", "rgba(124, 58, 237, 0.12)");
     if (containerRef.current) {
       containerRef.current.style.setProperty("--otdr-tooltip-bg-runtime", tooltipBackground);
       containerRef.current.style.setProperty("--otdr-tooltip-fg-runtime", tooltipForeground);
@@ -1112,6 +1386,16 @@ function TraceChart({
           selectedHaloColor: markerSelectedHalo,
           hoverRingColor: markerHoverRing,
           hoverHaloColor: markerHoverHalo
+        });
+      },
+      drawCrosshair: () => {
+        drawMeasurementCursors(handle.ctx, measurementCursorsRef.current, viewportRef.current, canvasRect, {
+          cursorAColor,
+          cursorBColor,
+          cursorSpanColor,
+          labelBackground: crosshairLabelBackground,
+          labelTextColor: crosshairTextColor,
+          labelBorder: tooltipBorder
         });
       },
       crosshair: crosshairRef.current,
@@ -1178,25 +1462,65 @@ function TraceChart({
       setViewport(next);
     };
     const onPointerDown = (event) => {
+      if (event.button !== 0) return;
+      const canvasRect = getCanvasRect(handle.canvas);
+      const cursorHit = hitTestMeasurementCursors(
+        measurementCursorsRef.current,
+        viewportRef.current,
+        canvasRect,
+        event.offsetX,
+        event.offsetY
+      );
+      if (cursorHit) {
+        cursorDragRef.current = {
+          active: true,
+          pointerId: event.pointerId,
+          key: cursorHit,
+          moved: false
+        };
+        handle.canvas.setPointerCapture(event.pointerId);
+        handle.canvas.style.cursor = "ew-resize";
+        return;
+      }
       dragRef.current = {
         active: true,
         pointerId: event.pointerId,
         lastX: event.offsetX,
-        lastY: event.offsetY
+        lastY: event.offsetY,
+        moved: false
       };
       handle.canvas.setPointerCapture(event.pointerId);
       handle.canvas.style.cursor = "grabbing";
     };
     const onPointerMove = (event) => {
-      const drag = dragRef.current;
       const canvasRect = getCanvasRect(handle.canvas);
+      const cursorDrag = cursorDragRef.current;
+      if (cursorDrag.active && cursorDrag.pointerId === event.pointerId && cursorDrag.key) {
+        const cursor = resolveMeasurementCursorAtPointer(event.offsetX, event.offsetY, canvasRect);
+        if (cursor) {
+          const current = measurementCursorsRef.current;
+          const next = cursorDrag.key === "a" ? { ...current, a: cursor } : { ...current, b: cursor };
+          setMeasurementCursors(next);
+          setLiveLabel(
+            `Cursor ${cursorDrag.key.toUpperCase()}: ${formatDistance(cursor.distance, xUnitRef.current)}, ${formatPower(cursor.power, 2)}`
+          );
+        }
+        cursorDragRef.current = {
+          ...cursorDrag,
+          moved: true
+        };
+        scheduler.scheduleRender();
+        return;
+      }
+      const drag = dragRef.current;
       if (drag.active && drag.pointerId === event.pointerId) {
         const deltaX = event.offsetX - drag.lastX;
         const deltaY = event.offsetY - drag.lastY;
         dragRef.current = {
           ...drag,
           lastX: event.offsetX,
-          lastY: event.offsetY
+          lastY: event.offsetY,
+          moved: drag.moved || Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0
         };
         const next = panViewportByPixels(viewportRef.current, boundsRef.current, deltaX, deltaY, canvasRect);
         setViewport(next);
@@ -1215,40 +1539,63 @@ function TraceChart({
         onPointHoverRef.current?.(crosshair.point, crosshair.index);
         setLiveLabel(crosshair.label);
       }
-      const hit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
-      if (hit === null) {
+      const markerHit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
+      if (markerHit === null) {
         hoveredMarkerIndexRef.current = null;
         setTooltip(null);
       } else {
-        hoveredMarkerIndexRef.current = hit;
-        const marker = markersRef.current.find((candidate) => candidate.index === hit);
+        hoveredMarkerIndexRef.current = markerHit;
+        const marker = markersRef.current.find((candidate) => candidate.index === markerHit);
         if (marker) {
           const text = formatEventTooltip(marker, xUnitRef.current);
           const { width: tooltipWidth, height: tooltipHeight } = estimateTooltipSize(text);
           const viewportWidth = handle.canvas.clientWidth || canvasRect.width;
           const viewportHeight = handle.canvas.clientHeight || canvasRect.height;
           setTooltip({
-            left: clamp(event.offsetX + 12, 8, viewportWidth - tooltipWidth - 8),
-            top: clamp(event.offsetY + 12, 8, viewportHeight - tooltipHeight - 8),
+            left: clamp2(event.offsetX + 12, 8, viewportWidth - tooltipWidth - 8),
+            top: clamp2(event.offsetY + 12, 8, viewportHeight - tooltipHeight - 8),
             text
           });
         }
       }
+      const cursorHit = hitTestMeasurementCursors(
+        measurementCursorsRef.current,
+        viewportRef.current,
+        canvasRect,
+        event.offsetX,
+        event.offsetY
+      );
+      handle.canvas.style.cursor = cursorHit ? "ew-resize" : "crosshair";
       scheduler.scheduleRender();
     };
     const onPointerUp = (event) => {
+      const cursorDrag = cursorDragRef.current;
+      if (cursorDrag.active && cursorDrag.pointerId === event.pointerId) {
+        cursorDragRef.current = {
+          active: false,
+          pointerId: null,
+          key: null,
+          moved: false
+        };
+        suppressClickRef.current = cursorDrag.moved;
+        handle.canvas.releasePointerCapture(event.pointerId);
+        handle.canvas.style.cursor = "crosshair";
+        return;
+      }
       if (dragRef.current.pointerId !== event.pointerId) return;
+      suppressClickRef.current = dragRef.current.moved;
       dragRef.current = {
         active: false,
         pointerId: null,
         lastX: 0,
-        lastY: 0
+        lastY: 0,
+        moved: false
       };
       handle.canvas.releasePointerCapture(event.pointerId);
       handle.canvas.style.cursor = "crosshair";
     };
     const onPointerLeave = () => {
-      if (!dragRef.current.active) {
+      if (!dragRef.current.active && !cursorDragRef.current.active) {
         crosshairRef.current = null;
         hoveredMarkerIndexRef.current = null;
         setTooltip(null);
@@ -1256,11 +1603,32 @@ function TraceChart({
       }
     };
     const onClick = (event) => {
-      const hit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
-      if (hit === null) return;
-      const selected = eventsRef.current[hit];
-      if (!selected) return;
-      onEventClickRef.current?.(selected, hit);
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
+      const canvasRect = getCanvasRect(handle.canvas);
+      const cursorHit = hitTestMeasurementCursors(
+        measurementCursorsRef.current,
+        viewportRef.current,
+        canvasRect,
+        event.offsetX,
+        event.offsetY
+      );
+      if (cursorHit) return;
+      const markerHit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
+      if (markerHit !== null) {
+        const selected = eventsRef.current[markerHit];
+        if (!selected) return;
+        onEventClickRef.current?.(selected, markerHit);
+        return;
+      }
+      const cursor = resolveMeasurementCursorAtPointer(event.offsetX, event.offsetY, canvasRect);
+      if (!cursor) return;
+      const current = measurementCursorsRef.current;
+      const next = !current.a ? { a: cursor, b: null } : !current.b ? { ...current, b: cursor } : { a: cursor, b: null };
+      setMeasurementCursors(next);
+      setLiveLabel(`Cursor ${!current.a || current.b ? "A" : "B"}: ${formatDistance(cursor.distance, xUnitRef.current)}`);
     };
     const onDoubleClick = () => {
       setViewport(computeViewport(traceRef.current));
@@ -1288,7 +1656,10 @@ function TraceChart({
       canvasHandleRef.current = null;
       handle.dispose();
     };
-  }, [height, width]);
+  }, [height, isMeasurementControlled, width]);
+  (0, import_react.useEffect)(() => {
+    schedulerRef.current?.scheduleRender();
+  }, [normalizedControlledMeasurementCursors, resolvedMeasurementCursors]);
   (0, import_react.useEffect)(() => {
     schedulerRef.current?.scheduleRender();
   }, [viewport, events, overlays, xUnit, selectedEvent]);
@@ -1339,6 +1710,26 @@ function TraceChart({
           setViewport(computeViewport(traceRef.current));
           return;
         }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          const current = measurementCursorsRef.current;
+          if (current.b) {
+            setMeasurementCursors({ ...current, b: null });
+            return;
+          }
+          if (current.a) {
+            setMeasurementCursors(createEmptyMeasurementCursors());
+          }
+          return;
+        }
+        if ((event.key === "a" || event.key === "A" || event.key === "b" || event.key === "B") && crosshairRef.current) {
+          event.preventDefault();
+          const key = event.key.toLowerCase();
+          const cursor = buildMeasurementCursor(crosshairRef.current);
+          const next = key === "a" ? { ...measurementCursorsRef.current, a: cursor } : { ...measurementCursorsRef.current, b: cursor };
+          setMeasurementCursors(next);
+          return;
+        }
         if (event.key === "Tab" && markersRef.current.length > 0) {
           event.preventDefault();
           const direction = event.shiftKey ? -1 : 1;
@@ -1372,6 +1763,18 @@ function TraceChart({
       },
       children: [
         tooltip ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.tooltip, style: { left: tooltip.left, top: tooltip.top }, children: tooltip.text }) : null,
+        measurement ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: TraceChart_default.measurementHud, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: TraceChart_default.measurementRow, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: TraceChart_default.measurementLabel, children: "A" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: `${formatDistance(measurement.distanceA, xUnit)} \xB7 ${formatPower(measurement.powerA, 2)}` })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: TraceChart_default.measurementRow, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: TraceChart_default.measurementLabel, children: "B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: `${formatDistance(measurement.distanceB, xUnit)} \xB7 ${formatPower(measurement.powerB, 2)}` })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.measurementDelta, children: `\u0394 ${formatDistance(measurement.deltaDistance, xUnit)} | ${formatPower(measurement.deltaPower, 3)} | Avg ${measurement.avgAttenuationDbPerKm === null ? "N/A" : formatSlope(measurement.avgAttenuationDbPerKm, 3)}` }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.measurementMeta, children: `Events ${measurement.eventCountBetween} \xB7 Reflective ${measurement.reflectiveEventCountBetween} \xB7 Splice \u03A3 ${formatPower(measurement.spliceLossSumBetween, 3)}` })
+        ] }) : null,
         trace.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.empty, children: "No trace points available" }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TraceChart_default.liveRegion, "aria-live": "polite", children: liveLabel })
       ]
@@ -1748,9 +2151,55 @@ var FiberMap_default = {};
 
 // src/components/FiberMap.tsx
 var import_jsx_runtime4 = require("react/jsx-runtime");
-function parseDistance3(value) {
+function parseDistance4(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+var HORIZONTAL_MARGIN_START = 30;
+var HORIZONTAL_MARGIN_END = 30;
+var HORIZONTAL_MIN_WIDTH = 680;
+var HORIZONTAL_DEFAULT_WIDTH = 1e3;
+var HORIZONTAL_HEIGHT = 180;
+var HORIZONTAL_BASELINE = 90;
+var VERTICAL_START = 24;
+var VERTICAL_LENGTH = 366;
+var VERTICAL_BASELINE = 90;
+var VERTICAL_VIEWBOX_WIDTH = 180;
+var VERTICAL_VIEWBOX_HEIGHT = 420;
+var MIN_ZOOM = 1;
+var MAX_ZOOM = 8;
+var ZOOM_FACTOR = 1.15;
+var ROOT_HORIZONTAL_PADDING = 24;
+function clamp3(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+function getHorizontalMapWidth(baseWidth, zoom) {
+  return Math.max(HORIZONTAL_MIN_WIDTH, Math.round(baseWidth * zoom));
+}
+function getHoverTagMetrics(item, isVertical, horizontalMapWidth) {
+  const label = `#${item.index + 1}`;
+  const width = Math.max(34, label.length * 7 + 12);
+  const height = 18;
+  if (isVertical) {
+    const x2 = clamp3(item.x + 10, 8, VERTICAL_VIEWBOX_WIDTH - width - 8);
+    const y2 = clamp3(item.y - height - 6, 8, VERTICAL_VIEWBOX_HEIGHT - height - 8);
+    return {
+      x: x2,
+      y: y2,
+      width,
+      textX: x2 + width / 2,
+      textY: y2 + 12
+    };
+  }
+  const x = clamp3(item.x - width / 2, 8, horizontalMapWidth - width - 8);
+  const y = clamp3(item.y - height - 8, 8, HORIZONTAL_HEIGHT - height - 8);
+  return {
+    x,
+    y,
+    width,
+    textX: x + width / 2,
+    textY: y + 12
+  };
 }
 function FiberMap({
   events,
@@ -1761,150 +2210,317 @@ function FiberMap({
   onEventClick
 }) {
   const markerRefs = (0, import_react3.useRef)([]);
+  const containerRef = (0, import_react3.useRef)(null);
   const [hoveredIndex, setHoveredIndex] = (0, import_react3.useState)(null);
+  const [zoomLevel, setZoomLevel] = (0, import_react3.useState)(MIN_ZOOM);
+  const [baseHorizontalWidth, setBaseHorizontalWidth] = (0, import_react3.useState)(HORIZONTAL_DEFAULT_WIDTH);
   const isVertical = orientation === "vertical";
+  (0, import_react3.useEffect)(() => {
+    setHoveredIndex(null);
+    setZoomLevel(MIN_ZOOM);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+    }
+  }, [events.length, isVertical]);
+  (0, import_react3.useEffect)(() => {
+    if (isVertical) return;
+    const node = containerRef.current;
+    if (!node) return;
+    const update = () => {
+      const measured = Math.round(node.clientWidth - ROOT_HORIZONTAL_PADDING);
+      if (!Number.isFinite(measured)) return;
+      setBaseHorizontalWidth((current) => {
+        const next = Math.max(HORIZONTAL_MIN_WIDTH, measured || HORIZONTAL_DEFAULT_WIDTH);
+        return current === next ? current : next;
+      });
+    };
+    update();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => update());
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [isVertical]);
+  const horizontalMapWidth = (0, import_react3.useMemo)(
+    () => getHorizontalMapWidth(baseHorizontalWidth, zoomLevel),
+    [baseHorizontalWidth, zoomLevel]
+  );
+  const horizontalTrackLength = (0, import_react3.useMemo)(
+    () => Math.max(1, horizontalMapWidth - HORIZONTAL_MARGIN_START - HORIZONTAL_MARGIN_END),
+    [horizontalMapWidth]
+  );
   const prepared = (0, import_react3.useMemo)(() => {
     const parsed = events.map((event, index) => ({
       event,
       index,
-      distance: parseDistance3(event.distance),
+      distance: parseDistance4(event.distance),
       type: classifyEvent(event)
     }));
     const maxDistance = Math.max(1, ...parsed.map((item) => item.distance));
-    const positioned = parsed.map((item, order) => {
+    return parsed.map((item) => {
       const ratio = item.distance / maxDistance;
-      const x = isVertical ? 90 : 30 + ratio * 940;
-      const y = isVertical ? 24 + ratio * 366 : 90;
+      const x = isVertical ? VERTICAL_BASELINE : HORIZONTAL_MARGIN_START + ratio * horizontalTrackLength;
+      const y = isVertical ? VERTICAL_START + ratio * VERTICAL_LENGTH : HORIZONTAL_BASELINE;
       return {
         ...item,
         ratio,
         x,
-        y,
-        labelVisible: false,
-        labelLane: order % 2 === 0 ? 0 : 1,
-        clusterCount: 0
+        y
       };
     });
-    const clusterCounts = /* @__PURE__ */ new Map();
-    let lastVisiblePos = Number.NEGATIVE_INFINITY;
-    let lastVisibleIndex = null;
-    const baseGap = isVertical ? 24 : 20;
-    const densityBoost = positioned.length > 36 ? 8 : positioned.length > 20 ? 4 : 0;
-    const minGap = baseGap + densityBoost;
-    positioned.forEach((item, order) => {
-      const isPriority = item.index === selectedEvent || item.index === hoveredIndex;
-      const position = isVertical ? item.y : item.x;
-      const enoughSpace = position - lastVisiblePos >= minGap;
-      const labelVisible = isPriority || enoughSpace;
-      item.labelVisible = labelVisible;
-      item.labelLane = order % 2 === 0 ? 0 : 1;
-      if (labelVisible) {
-        lastVisiblePos = position;
-        lastVisibleIndex = item.index;
-      } else if (lastVisibleIndex !== null) {
-        clusterCounts.set(lastVisibleIndex, (clusterCounts.get(lastVisibleIndex) ?? 0) + 1);
-      }
-    });
-    positioned.forEach((item) => {
-      item.clusterCount = clusterCounts.get(item.index) ?? 0;
-    });
-    return positioned;
-  }, [events, hoveredIndex, isVertical, selectedEvent]);
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("section", { className: `${FiberMap_default.root} ${isVertical ? FiberMap_default.vertical : ""}`, "aria-label": "Fiber map", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("svg", { viewBox: isVertical ? "0 0 180 420" : "0 0 1000 180", className: FiberMap_default.svg, children: [
-    isVertical ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: "90", y1: "24", x2: "90", y2: "390", className: FiberMap_default.path }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "90", y: "16", textAnchor: "middle", className: FiberMap_default.label, children: locationA }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "90", y: "412", textAnchor: "middle", className: FiberMap_default.label, children: locationB })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: "30", y1: "90", x2: "970", y2: "90", className: FiberMap_default.path }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "30", y: "74", textAnchor: "start", className: FiberMap_default.label, children: locationA }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "970", y: "74", textAnchor: "end", className: FiberMap_default.label, children: locationB })
-    ] }),
-    prepared.map((item) => {
-      const x = item.x;
-      const y = item.y;
-      const selected = selectedEvent === item.index;
-      const hovered = hoveredIndex === item.index;
-      const labelX = isVertical ? x + (item.labelLane === 0 ? 14 : -14) : x;
-      const labelY = isVertical ? y + 4 : y + (item.labelLane === 0 ? -16 : 22);
-      const labelAnchor = isVertical ? item.labelLane === 0 ? "start" : "end" : "middle";
-      const connectorX = isVertical ? x + (item.labelLane === 0 ? 10 : -10) : x;
-      const connectorY = isVertical ? y : y + (item.labelLane === 0 ? -12 : 12);
-      const markerClass = [
-        FiberMap_default.marker,
-        FiberMap_default[item.type] ?? FiberMap_default.unknown,
-        selected ? FiberMap_default.selected : "",
-        hovered ? FiberMap_default.hovered : ""
-      ].filter(Boolean).join(" ");
-      return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-        "g",
+  }, [events, horizontalTrackLength, isVertical]);
+  const hoveredEvent = (0, import_react3.useMemo)(
+    () => prepared.find((item) => item.index === hoveredIndex) ?? null,
+    [hoveredIndex, prepared]
+  );
+  const updateZoom = (0, import_react3.useCallback)(
+    (zoomIn, viewportPointerX) => {
+      const container = containerRef.current;
+      if (!container || isVertical) return;
+      setZoomLevel((current) => {
+        const next = clamp3(current * (zoomIn ? ZOOM_FACTOR : 1 / ZOOM_FACTOR), MIN_ZOOM, MAX_ZOOM);
+        if (next === current) return current;
+        const oldWidth = getHorizontalMapWidth(baseHorizontalWidth, current);
+        const newWidth = getHorizontalMapWidth(baseHorizontalWidth, next);
+        const normalized = oldWidth > 0 ? (container.scrollLeft + viewportPointerX) / oldWidth : 0;
+        const nextScroll = clamp3(
+          normalized * newWidth - viewportPointerX,
+          0,
+          Math.max(0, newWidth - container.clientWidth)
+        );
+        requestAnimationFrame(() => {
+          const latestContainer = containerRef.current;
+          if (!latestContainer) return;
+          latestContainer.scrollLeft = nextScroll;
+        });
+        return next;
+      });
+    },
+    [baseHorizontalWidth, isVertical]
+  );
+  const handleWheel = (0, import_react3.useCallback)(
+    (event) => {
+      if (isVertical || events.length === 0 || event.deltaY === 0) return;
+      event.preventDefault();
+      const node = containerRef.current;
+      const rect = node?.getBoundingClientRect();
+      const viewportPointerX = rect ? event.clientX - rect.left : 0;
+      updateZoom(event.deltaY < 0, viewportPointerX);
+    },
+    [events.length, isVertical, updateZoom]
+  );
+  const hoverTagMetrics = hoveredEvent ? getHoverTagMetrics(hoveredEvent, isVertical, horizontalMapWidth) : null;
+  const rootClassName = `${FiberMap_default.root} ${isVertical ? FiberMap_default.vertical : FiberMap_default.horizontal}`;
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    "section",
+    {
+      ref: containerRef,
+      className: rootClassName,
+      "aria-label": "Fiber map",
+      onWheel: handleWheel,
+      children: isVertical ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+        "svg",
         {
-          ref: (node) => {
-            markerRefs.current[item.index] = node;
-          },
-          className: FiberMap_default.event,
-          onClick: () => onEventClick?.(item.event, item.index),
-          "aria-label": `Event ${item.index + 1}`,
-          tabIndex: 0,
-          onMouseEnter: () => setHoveredIndex(item.index),
-          onMouseLeave: () => setHoveredIndex((current) => current === item.index ? null : current),
-          onFocus: () => setHoveredIndex(item.index),
-          onBlur: () => setHoveredIndex((current) => current === item.index ? null : current),
-          onKeyDown: (event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onEventClick?.(item.event, item.index);
-              return;
-            }
-            if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-              event.preventDefault();
-              markerRefs.current[item.index + 1]?.focus();
-              return;
-            }
-            if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-              event.preventDefault();
-              markerRefs.current[Math.max(0, item.index - 1)]?.focus();
-            }
-          },
+          viewBox: `0 0 ${VERTICAL_VIEWBOX_WIDTH} ${VERTICAL_VIEWBOX_HEIGHT}`,
+          className: FiberMap_default.svg,
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("circle", { cx: x, cy: y, r: "7.5", className: markerClass }),
-            item.labelVisible ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: x, y1: y, x2: connectorX, y2: connectorY, className: FiberMap_default.labelConnector }) : null,
-            item.labelVisible ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("text", { x: labelX, y: labelY, textAnchor: labelAnchor, className: `${FiberMap_default.label} ${FiberMap_default.eventLabel}`, children: [
-              "#",
-              item.index + 1
-            ] }) : null,
-            item.clusterCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("g", { className: FiberMap_default.cluster, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              "line",
+              {
+                x1: VERTICAL_BASELINE,
+                y1: VERTICAL_START,
+                x2: VERTICAL_BASELINE,
+                y2: VERTICAL_START + VERTICAL_LENGTH,
+                className: FiberMap_default.path
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "90", y: "16", textAnchor: "middle", className: FiberMap_default.label, children: locationA }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "90", y: "412", textAnchor: "middle", className: FiberMap_default.label, children: locationB }),
+            prepared.map((item) => {
+              const selected = selectedEvent === item.index;
+              const hovered = hoveredIndex === item.index;
+              const markerClass = [
+                FiberMap_default.marker,
+                FiberMap_default[item.type] ?? FiberMap_default.unknown,
+                selected ? FiberMap_default.selected : "",
+                hovered ? FiberMap_default.hovered : ""
+              ].filter(Boolean).join(" ");
+              return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                "g",
+                {
+                  ref: (node) => {
+                    markerRefs.current[item.index] = node;
+                  },
+                  className: FiberMap_default.event,
+                  onClick: () => onEventClick?.(item.event, item.index),
+                  "aria-label": `Event ${item.index + 1}`,
+                  tabIndex: 0,
+                  onMouseEnter: () => setHoveredIndex(item.index),
+                  onMouseLeave: () => setHoveredIndex((current) => current === item.index ? null : current),
+                  onFocus: () => setHoveredIndex(item.index),
+                  onBlur: () => setHoveredIndex((current) => current === item.index ? null : current),
+                  onKeyDown: (event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onEventClick?.(item.event, item.index);
+                      return;
+                    }
+                    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+                      event.preventDefault();
+                      markerRefs.current[Math.min(events.length - 1, item.index + 1)]?.focus();
+                      return;
+                    }
+                    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      markerRefs.current[Math.max(0, item.index - 1)]?.focus();
+                    }
+                  },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("circle", { cx: item.x, cy: item.y, r: "7.5", className: markerClass }),
+                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("title", { children: `Event #${item.index + 1}` })
+                  ]
+                },
+                `map-event-${item.index}`
+              );
+            }),
+            hoveredEvent && hoverTagMetrics ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("g", { className: FiberMap_default.hoverTag, pointerEvents: "none", children: [
               /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                 "rect",
                 {
-                  x: isVertical ? labelX + (item.labelLane === 0 ? 4 : -30) : x + 8,
-                  y: isVertical ? labelY - 9 : labelY - (item.labelLane === 0 ? 20 : 6),
-                  width: "22",
-                  height: "12",
-                  rx: "6",
-                  ry: "6"
+                  x: hoverTagMetrics.x,
+                  y: hoverTagMetrics.y,
+                  width: hoverTagMetrics.width,
+                  height: "18",
+                  rx: "8",
+                  ry: "8"
                 }
               ),
               /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
                 "text",
                 {
-                  x: isVertical ? labelX + (item.labelLane === 0 ? 15 : -19) : x + 19,
-                  y: isVertical ? labelY : labelY - (item.labelLane === 0 ? 10 : -4),
+                  x: hoverTagMetrics.textX,
+                  y: hoverTagMetrics.textY,
                   textAnchor: "middle",
-                  className: FiberMap_default.clusterText,
+                  className: FiberMap_default.hoverTagText,
                   children: [
-                    "+",
-                    item.clusterCount
+                    "#",
+                    hoveredEvent.index + 1
                   ]
                 }
               )
             ] }) : null
           ]
-        },
-        `map-event-${item.index}`
-      );
-    })
-  ] }) });
+        }
+      ) : /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+        "svg",
+        {
+          width: horizontalMapWidth,
+          height: HORIZONTAL_HEIGHT,
+          className: FiberMap_default.svg,
+          role: "img",
+          "aria-label": "Fiber map trace",
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              "line",
+              {
+                x1: HORIZONTAL_MARGIN_START,
+                y1: HORIZONTAL_BASELINE,
+                x2: HORIZONTAL_MARGIN_START + horizontalTrackLength,
+                y2: HORIZONTAL_BASELINE,
+                className: FiberMap_default.path
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: HORIZONTAL_MARGIN_START, y: "74", textAnchor: "start", className: FiberMap_default.label, children: locationA }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              "text",
+              {
+                x: HORIZONTAL_MARGIN_START + horizontalTrackLength,
+                y: "74",
+                textAnchor: "end",
+                className: FiberMap_default.label,
+                children: locationB
+              }
+            ),
+            prepared.map((item) => {
+              const selected = selectedEvent === item.index;
+              const hovered = hoveredIndex === item.index;
+              const markerClass = [
+                FiberMap_default.marker,
+                FiberMap_default[item.type] ?? FiberMap_default.unknown,
+                selected ? FiberMap_default.selected : "",
+                hovered ? FiberMap_default.hovered : ""
+              ].filter(Boolean).join(" ");
+              return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                "g",
+                {
+                  ref: (node) => {
+                    markerRefs.current[item.index] = node;
+                  },
+                  className: FiberMap_default.event,
+                  onClick: () => onEventClick?.(item.event, item.index),
+                  "aria-label": `Event ${item.index + 1}`,
+                  tabIndex: 0,
+                  onMouseEnter: () => setHoveredIndex(item.index),
+                  onMouseLeave: () => setHoveredIndex((current) => current === item.index ? null : current),
+                  onFocus: () => setHoveredIndex(item.index),
+                  onBlur: () => setHoveredIndex((current) => current === item.index ? null : current),
+                  onKeyDown: (event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onEventClick?.(item.event, item.index);
+                      return;
+                    }
+                    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+                      event.preventDefault();
+                      markerRefs.current[Math.min(events.length - 1, item.index + 1)]?.focus();
+                      return;
+                    }
+                    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      markerRefs.current[Math.max(0, item.index - 1)]?.focus();
+                    }
+                  },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("circle", { cx: item.x, cy: item.y, r: "7.5", className: markerClass }),
+                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("title", { children: `Event #${item.index + 1}` })
+                  ]
+                },
+                `map-event-${item.index}`
+              );
+            }),
+            hoveredEvent && hoverTagMetrics ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("g", { className: FiberMap_default.hoverTag, pointerEvents: "none", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "rect",
+                {
+                  x: hoverTagMetrics.x,
+                  y: hoverTagMetrics.y,
+                  width: hoverTagMetrics.width,
+                  height: "18",
+                  rx: "8",
+                  ry: "8"
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                "text",
+                {
+                  x: hoverTagMetrics.textX,
+                  y: hoverTagMetrics.textY,
+                  textAnchor: "middle",
+                  className: FiberMap_default.hoverTagText,
+                  children: [
+                    "#",
+                    hoveredEvent.index + 1
+                  ]
+                }
+              )
+            ] }) : null
+          ]
+        }
+      )
+    }
+  );
 }
 
 // src/components/TraceSummary.tsx
@@ -1915,7 +2531,7 @@ var TraceSummary_default = {};
 
 // src/components/TraceSummary.tsx
 var import_jsx_runtime5 = require("react/jsx-runtime");
-function parseDistance4(distance) {
+function parseDistance5(distance) {
   const value = Number.parseFloat(distance);
   return Number.isFinite(value) ? value : 0;
 }
@@ -1924,7 +2540,7 @@ function TraceSummary({ result, thresholds = {}, xUnit = "km" }) {
   const { cards, status } = (0, import_react4.useMemo)(() => {
     const summary = normalized.keyEvents.summary;
     const lastEvent = normalized.keyEvents.events[normalized.keyEvents.events.length - 1];
-    const fiberLength = lastEvent ? parseDistance4(lastEvent.distance) : normalized.fxdParams.range;
+    const fiberLength = lastEvent ? parseDistance5(lastEvent.distance) : normalized.fxdParams.range;
     const avgLossPerKm = fiberLength > 0 ? summary.totalLoss / fiberLength : 0;
     const computedStatus = assessSummary(summary, thresholds);
     const metricCards = [
@@ -2130,6 +2746,61 @@ function PrintButton({ label = "Print" }) {
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", className: PrintButton_default.button, onClick: () => window.print(), children: label });
 }
 
+// src/components/TraceMeasurementPanel.module.css
+var TraceMeasurementPanel_default = {};
+
+// src/components/TraceMeasurementPanel.tsx
+var import_jsx_runtime9 = require("react/jsx-runtime");
+function TraceMeasurementPanel({
+  cursors,
+  measurement,
+  xUnit = "km",
+  onSwap,
+  onClear
+}) {
+  const hasA = Boolean(cursors.a);
+  const hasB = Boolean(cursors.b);
+  const ready = Boolean(measurement);
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("section", { className: TraceMeasurementPanel_default.root, "aria-label": "Trace measurement", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("header", { className: TraceMeasurementPanel_default.header, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h3", { className: TraceMeasurementPanel_default.title, children: "Cursor Measurement" }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: TraceMeasurementPanel_default.actions, children: [
+        onSwap ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", className: TraceMeasurementPanel_default.button, onClick: onSwap, disabled: !ready, children: "Swap A/B" }) : null,
+        onClear ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", className: TraceMeasurementPanel_default.button, onClick: onClear, disabled: !hasA && !hasB, children: "Clear" }) : null
+      ] })
+    ] }),
+    !hasA && !hasB ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { className: TraceMeasurementPanel_default.hint, children: "Click on the trace to place Cursor A, then place Cursor B." }) : null,
+    hasA && !hasB ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("p", { className: TraceMeasurementPanel_default.hint, children: [
+      "Cursor A at ",
+      formatDistance(cursors.a?.distance ?? 0, xUnit),
+      ". Click again to place Cursor B."
+    ] }) : null,
+    measurement ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: TraceMeasurementPanel_default.grid, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("article", { className: TraceMeasurementPanel_default.card, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.cardTitle, children: "Cursor A" }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.value, children: formatDistance(measurement.distanceA, xUnit) }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.meta, children: formatPower(measurement.powerA, 3) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("article", { className: TraceMeasurementPanel_default.card, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.cardTitle, children: "Cursor B" }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.value, children: formatDistance(measurement.distanceB, xUnit) }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.meta, children: formatPower(measurement.powerB, 3) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("article", { className: TraceMeasurementPanel_default.card, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.cardTitle, children: "Delta" }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.value, children: formatDistance(measurement.deltaDistance, xUnit) }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.meta, children: formatPower(measurement.deltaPower, 3) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("article", { className: TraceMeasurementPanel_default.card, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.cardTitle, children: "Interval Stats" }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.metaStrong, children: `Avg: ${measurement.avgAttenuationDbPerKm === null ? "N/A" : formatSlope(measurement.avgAttenuationDbPerKm, 3)}` }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.meta, children: `Events: ${measurement.eventCountBetween} \xB7 Reflective: ${measurement.reflectiveEventCountBetween}` }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: TraceMeasurementPanel_default.meta, children: `Splice \u03A3: ${formatPower(measurement.spliceLossSumBetween, 3)}` })
+      ] })
+    ] }) : null
+  ] });
+}
+
 // src/components/info/EquipmentInfoPanel.tsx
 var import_react8 = require("react");
 
@@ -2140,28 +2811,28 @@ var import_react7 = require("react");
 var InfoPanel_default = {};
 
 // src/components/info/InfoPanel.tsx
-var import_jsx_runtime9 = require("react/jsx-runtime");
+var import_jsx_runtime10 = require("react/jsx-runtime");
 function Entries({ entries }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("dl", { className: InfoPanel_default.list, children: entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_react7.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("dt", { className: InfoPanel_default.term, children: entry.label }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("dd", { className: InfoPanel_default.value, children: entry.value })
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("dl", { className: InfoPanel_default.list, children: entries.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_react7.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("dt", { className: InfoPanel_default.term, children: entry.label }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("dd", { className: InfoPanel_default.value, children: entry.value })
   ] }, entry.label)) });
 }
 function InfoPanel({ title, entries, collapsible = true, defaultExpanded = true }) {
   if (!collapsible) {
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("section", { className: InfoPanel_default.root, "aria-label": title, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("header", { className: InfoPanel_default.header, children: title }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: InfoPanel_default.body, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Entries, { entries }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: InfoPanel_default.root, "aria-label": title, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("header", { className: InfoPanel_default.header, children: title }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: InfoPanel_default.body, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Entries, { entries }) })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("details", { className: InfoPanel_default.root, open: defaultExpanded, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("summary", { className: InfoPanel_default.summary, children: title }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: InfoPanel_default.body, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Entries, { entries }) })
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("details", { className: InfoPanel_default.root, open: defaultExpanded, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("summary", { className: InfoPanel_default.summary, children: title }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: InfoPanel_default.body, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Entries, { entries }) })
   ] });
 }
 
 // src/components/info/EquipmentInfoPanel.tsx
-var import_jsx_runtime10 = require("react/jsx-runtime");
+var import_jsx_runtime11 = require("react/jsx-runtime");
 function EquipmentInfoPanel({ supParams }) {
   const entries = (0, import_react8.useMemo)(
     () => [
@@ -2175,12 +2846,12 @@ function EquipmentInfoPanel({ supParams }) {
     ].filter((entry) => entry.value.trim().length > 0),
     [supParams]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(InfoPanel, { title: "Equipment", entries });
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InfoPanel, { title: "Equipment", entries });
 }
 
 // src/components/info/FiberInfoPanel.tsx
 var import_react9 = require("react");
-var import_jsx_runtime11 = require("react/jsx-runtime");
+var import_jsx_runtime12 = require("react/jsx-runtime");
 function present(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -2201,12 +2872,12 @@ function FiberInfoPanel({ genParams }) {
     ];
     return candidates.filter((entry) => Boolean(entry && present(entry.value)));
   }, [genParams]);
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InfoPanel, { title: "Fiber Info", entries });
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(InfoPanel, { title: "Fiber Info", entries });
 }
 
 // src/components/info/MeasurementInfoPanel.tsx
 var import_react10 = require("react");
-var import_jsx_runtime12 = require("react/jsx-runtime");
+var import_jsx_runtime13 = require("react/jsx-runtime");
 function MeasurementInfoPanel({ fxdParams }) {
   const entries = (0, import_react10.useMemo)(() => {
     const base = [
@@ -2229,14 +2900,14 @@ function MeasurementInfoPanel({ fxdParams }) {
     }
     return base;
   }, [fxdParams]);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(InfoPanel, { title: "Measurement", entries });
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoPanel, { title: "Measurement", entries });
 }
 
 // src/components/TraceViewer/TraceViewer.module.css
 var TraceViewer_default = {};
 
 // src/components/TraceViewer/TraceViewer.tsx
-var import_jsx_runtime13 = require("react/jsx-runtime");
+var import_jsx_runtime14 = require("react/jsx-runtime");
 function useCompactLayout(layout, hostRef) {
   const [compact, setCompact] = (0, import_react11.useState)(layout === "compact");
   (0, import_react11.useEffect)(() => {
@@ -2272,35 +2943,66 @@ function TraceViewerInner({
   const normalized = (0, import_react11.useMemo)(() => normalizeSorResult(result), [result]);
   const hostRef = (0, import_react11.useRef)(null);
   const { selectedIndex, select } = useEventSelection();
+  const [measurementCursors, setMeasurementCursors] = (0, import_react11.useState)({
+    a: null,
+    b: null
+  });
   const compact = useCompactLayout(layout, hostRef);
+  const measurement = (0, import_react11.useMemo)(
+    () => computeCursorMeasurement(normalized.trace, normalized.keyEvents.events, measurementCursors),
+    [measurementCursors, normalized.keyEvents.events, normalized.trace]
+  );
   (0, import_react11.useEffect)(() => {
     onExposeApi({
       select,
-      resetZoom: () => select(null)
+      resetZoom: () => {
+        select(null);
+        setMeasurementCursors({ a: null, b: null });
+      }
     });
   }, [onExposeApi, select]);
   (0, import_react11.useEffect)(() => {
     onEventSelect?.(selectedIndex);
   }, [onEventSelect, selectedIndex]);
+  (0, import_react11.useEffect)(() => {
+    setMeasurementCursors({ a: null, b: null });
+  }, [normalized]);
   const visible = new Set(
     sections ?? ["summary", "chart", "fiberMap", "eventTable", "lossBudget", "fiberInfo", "equipment", "measurement"]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { ref: hostRef, className: `${TraceViewer_default.root} ${compact ? TraceViewer_default.compact : TraceViewer_default.full}`, children: [
-    visible.has("summary") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: TraceViewer_default.summary, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(TraceSummary, { result: normalized, thresholds: thresholds?.summary, xUnit }) }) : null,
-    visible.has("chart") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: TraceViewer_default.chart, children: [
-      showPrintButton ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(PrintButton, {}) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { ref: hostRef, className: `${TraceViewer_default.root} ${compact ? TraceViewer_default.compact : TraceViewer_default.full}`, children: [
+    visible.has("summary") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: TraceViewer_default.summary, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(TraceSummary, { result: normalized, thresholds: thresholds?.summary, xUnit }) }) : null,
+    visible.has("chart") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: TraceViewer_default.chart, children: [
+      showPrintButton ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(PrintButton, {}) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
         TraceChart,
         {
           trace: normalized.trace,
           events: normalized.keyEvents.events,
           xUnit,
           selectedEvent: selectedIndex,
-          onEventClick: (_, index) => select(index)
+          measurementCursors,
+          onEventClick: (_, index) => select(index),
+          onMeasurementCursorsChange: setMeasurementCursors
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+        TraceMeasurementPanel,
+        {
+          cursors: measurementCursors,
+          measurement,
+          xUnit,
+          onClear: () => setMeasurementCursors({ a: null, b: null }),
+          ...measurement ? {
+            onSwap: () => setMeasurementCursors((current) => ({
+              a: current.b,
+              b: current.a
+            }))
+          } : {}
         }
       )
     ] }) : null,
-    visible.has("fiberMap") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: TraceViewer_default.fibermap, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+    visible.has("fiberMap") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: TraceViewer_default.fibermap, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
       FiberMap,
       {
         events: normalized.keyEvents.events,
@@ -2310,7 +3012,7 @@ function TraceViewerInner({
         onEventClick: (_, index) => select(index)
       }
     ) }) : null,
-    visible.has("eventTable") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: TraceViewer_default.table, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+    visible.has("eventTable") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: TraceViewer_default.table, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
       EventTable,
       {
         result: normalized,
@@ -2320,7 +3022,7 @@ function TraceViewerInner({
         onEventSelect: (_, index) => select(index)
       }
     ) }) : null,
-    visible.has("lossBudget") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: TraceViewer_default.losschart, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+    visible.has("lossBudget") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: TraceViewer_default.losschart, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
       LossBudgetChart,
       {
         events: normalized.keyEvents.events,
@@ -2329,9 +3031,9 @@ function TraceViewerInner({
         onBarClick: (_, index) => select(index)
       }
     ) }) : null,
-    visible.has("fiberInfo") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: TraceViewer_default.fiber, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(FiberInfoPanel, { genParams: normalized.genParams }) }) : null,
-    visible.has("equipment") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: TraceViewer_default.equip, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EquipmentInfoPanel, { supParams: normalized.supParams }) }) : null,
-    visible.has("measurement") ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: TraceViewer_default.measure, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MeasurementInfoPanel, { fxdParams: normalized.fxdParams }) }) : null
+    visible.has("fiberInfo") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: TraceViewer_default.fiber, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(FiberInfoPanel, { genParams: normalized.genParams }) }) : null,
+    visible.has("equipment") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: TraceViewer_default.equip, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(EquipmentInfoPanel, { supParams: normalized.supParams }) }) : null,
+    visible.has("measurement") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: TraceViewer_default.measure, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(MeasurementInfoPanel, { fxdParams: normalized.fxdParams }) }) : null
   ] });
 }
 var TraceViewer = (0, import_react11.forwardRef)(function TraceViewer2(props, ref) {
@@ -2363,7 +3065,7 @@ var TraceViewer = (0, import_react11.forwardRef)(function TraceViewer2(props, re
     }),
     []
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { ref: hostRef, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EventSelectionProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { ref: hostRef, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(EventSelectionProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
     TraceViewerInner,
     {
       ...props,
@@ -2382,7 +3084,7 @@ var import_browser = require("sor-reader/browser");
 var SorDropZone_default = {};
 
 // src/components/SorDropZone.tsx
-var import_jsx_runtime14 = require("react/jsx-runtime");
+var import_jsx_runtime15 = require("react/jsx-runtime");
 async function parseFile(file, parseOptions) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   return (0, import_browser.parseSor)(bytes, file.name, parseOptions);
@@ -2422,7 +3124,7 @@ function SorDropZone({ multiple = false, parseOptions, children, onResult, onErr
       inputRef.current?.click();
     }
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
     "label",
     {
       className,
@@ -2446,7 +3148,7 @@ function SorDropZone({ multiple = false, parseOptions, children, onResult, onErr
       tabIndex: 0,
       onKeyDown,
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "input",
           {
             ref: inputRef,
@@ -2460,8 +3162,8 @@ function SorDropZone({ multiple = false, parseOptions, children, onResult, onErr
             }
           }
         ),
-        children ?? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: loading ? "Parsing..." : "Drop .sor file here or click to select" }),
-        error ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("p", { children: error }) : null
+        children ?? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: loading ? "Parsing..." : "Drop .sor file here or click to select" }),
+        error ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("p", { children: error }) : null
       ]
     }
   );

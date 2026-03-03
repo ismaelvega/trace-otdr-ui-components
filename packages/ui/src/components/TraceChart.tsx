@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import type { KeyEvent, TracePoint } from "sor-reader";
 
-import type { TraceOverlay, ViewportRange } from "../types/chart.js";
+import type { MeasurementCursor, MeasurementCursors, TraceOverlay, ViewportRange } from "../types/chart.js";
 import type { DistanceUnit } from "../types/units.js";
+import { drawMeasurementCursors, hitTestMeasurementCursors } from "../canvas/measurement-cursors.js";
 import { createCanvas, type CanvasHandle } from "../canvas/canvas-manager.js";
 import { computeViewport } from "../canvas/coordinates.js";
 import { resolveCrosshairState, type CrosshairState } from "../canvas/crosshair.js";
@@ -15,6 +16,8 @@ import {
 } from "../canvas/event-markers.js";
 import { getZoomAxisFromModifiers, panViewportByPixels, zoomViewportAtPixel, type ZoomAxis } from "../canvas/interactions.js";
 import { createRenderScheduler, renderFrame, type RenderScheduler } from "../canvas/render-pipeline.js";
+import { computeCursorMeasurement } from "../utils/cursor-measurement.js";
+import { formatDistance, formatPower, formatSlope } from "../utils/formatters.js";
 import styles from "./TraceChart.module.css";
 
 export interface TraceChartProps {
@@ -26,9 +29,12 @@ export interface TraceChartProps {
   height?: number;
   xUnit?: DistanceUnit;
   selectedEvent?: number | null;
+  measurementCursors?: MeasurementCursors;
+  defaultMeasurementCursors?: MeasurementCursors;
   className?: string;
   onPointHover?: (point: TracePoint, index: number) => void;
   onEventClick?: (event: KeyEvent, index: number) => void;
+  onMeasurementCursorsChange?: (value: MeasurementCursors) => void;
   onZoomChange?: (viewport: ViewportRange) => void;
 }
 
@@ -43,6 +49,14 @@ interface DragState {
   pointerId: number | null;
   lastX: number;
   lastY: number;
+  moved: boolean;
+}
+
+interface CursorDragState {
+  active: boolean;
+  pointerId: number | null;
+  key: "a" | "b" | null;
+  moved: boolean;
 }
 
 function getCanvasRect(canvas: HTMLCanvasElement): { width: number; height: number } {
@@ -84,6 +98,41 @@ function estimateTooltipSize(text: string): { width: number; height: number } {
   return { width, height };
 }
 
+function createEmptyMeasurementCursors(): MeasurementCursors {
+  return {
+    a: null,
+    b: null,
+  };
+}
+
+function normalizeMeasurementCursors(value: MeasurementCursors | undefined): MeasurementCursors {
+  if (!value) return createEmptyMeasurementCursors();
+
+  return {
+    a: value.a ?? null,
+    b: value.b ?? null,
+  };
+}
+
+function isSameCursor(a: MeasurementCursor | null, b: MeasurementCursor | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  return a.distance === b.distance && a.power === b.power && a.traceIndex === b.traceIndex;
+}
+
+function areMeasurementCursorsEqual(a: MeasurementCursors, b: MeasurementCursors): boolean {
+  return isSameCursor(a.a, b.a) && isSameCursor(a.b, b.b);
+}
+
+function buildMeasurementCursor(state: CrosshairState): MeasurementCursor {
+  return {
+    distance: state.point.distance,
+    power: state.point.power,
+    traceIndex: state.index,
+  };
+}
+
 export function TraceChart({
   trace,
   events = [],
@@ -93,9 +142,12 @@ export function TraceChart({
   height = 360,
   xUnit = "km",
   selectedEvent = null,
+  measurementCursors: controlledMeasurementCursors,
+  defaultMeasurementCursors,
   className,
   onPointHover,
   onEventClick,
+  onMeasurementCursorsChange,
   onZoomChange,
 }: TraceChartProps): ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -109,6 +161,7 @@ export function TraceChart({
   const selectedEventRef = useRef<number | null>(selectedEvent);
   const onPointHoverRef = useRef(onPointHover);
   const onEventClickRef = useRef(onEventClick);
+  const onMeasurementCursorsChangeRef = useRef(onMeasurementCursorsChange);
   const onZoomChangeRef = useRef(onZoomChange);
 
   traceRef.current = trace;
@@ -118,7 +171,20 @@ export function TraceChart({
   selectedEventRef.current = selectedEvent;
   onPointHoverRef.current = onPointHover;
   onEventClickRef.current = onEventClick;
+  onMeasurementCursorsChangeRef.current = onMeasurementCursorsChange;
   onZoomChangeRef.current = onZoomChange;
+
+  const isMeasurementControlled = controlledMeasurementCursors !== undefined;
+  const normalizedControlledMeasurementCursors = useMemo(
+    () => normalizeMeasurementCursors(controlledMeasurementCursors),
+    [controlledMeasurementCursors],
+  );
+  const [uncontrolledMeasurementCursors, setUncontrolledMeasurementCursors] = useState<MeasurementCursors>(() =>
+    normalizeMeasurementCursors(defaultMeasurementCursors),
+  );
+  const resolvedMeasurementCursors = isMeasurementControlled
+    ? normalizedControlledMeasurementCursors
+    : uncontrolledMeasurementCursors;
 
   const baseViewport = useMemo(() => computeViewport(trace), [trace]);
   const [viewport, setViewportState] = useState<ViewportRange>(baseViewport);
@@ -126,17 +192,33 @@ export function TraceChart({
   const boundsRef = useRef(computeViewport(trace, 0));
   const crosshairRef = useRef<CrosshairState | null>(null);
   const markersRef = useRef<EventMarker[]>([]);
+  const measurementCursorsRef = useRef<MeasurementCursors>(resolvedMeasurementCursors);
   const dragRef = useRef<DragState>({
     active: false,
     pointerId: null,
     lastX: 0,
     lastY: 0,
+    moved: false,
   });
+  const cursorDragRef = useRef<CursorDragState>({
+    active: false,
+    pointerId: null,
+    key: null,
+    moved: false,
+  });
+  const suppressClickRef = useRef(false);
   const renderRef = useRef<() => void>(() => undefined);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [liveLabel, setLiveLabel] = useState("");
   const keyboardMarkerIndexRef = useRef<number>(-1);
   const hoveredMarkerIndexRef = useRef<number | null>(null);
+
+  measurementCursorsRef.current = resolvedMeasurementCursors;
+
+  const measurement = useMemo(
+    () => computeCursorMeasurement(trace, events, resolvedMeasurementCursors),
+    [events, resolvedMeasurementCursors, trace],
+  );
 
   const setViewport = (next: ViewportRange, notify = true): void => {
     viewportRef.current = next;
@@ -145,6 +227,40 @@ export function TraceChart({
       onZoomChangeRef.current?.(next);
     }
     schedulerRef.current?.scheduleRender();
+  };
+
+  const setMeasurementCursors = (next: MeasurementCursors, notify = true): void => {
+    const normalized = normalizeMeasurementCursors(next);
+    if (areMeasurementCursorsEqual(measurementCursorsRef.current, normalized)) return;
+
+    measurementCursorsRef.current = normalized;
+    if (!isMeasurementControlled) {
+      setUncontrolledMeasurementCursors(normalized);
+    }
+
+    if (notify) {
+      onMeasurementCursorsChangeRef.current?.(normalized);
+    }
+
+    schedulerRef.current?.scheduleRender();
+  };
+
+  const resolveMeasurementCursorAtPointer = (
+    pointerX: number,
+    pointerY: number,
+    canvasRect: { width: number; height: number },
+  ): MeasurementCursor | null => {
+    const crosshair = resolveCrosshairState(
+      traceRef.current,
+      pointerX,
+      pointerY,
+      viewportRef.current,
+      canvasRect,
+      xUnitRef.current,
+    );
+    if (!crosshair) return null;
+
+    return buildMeasurementCursor(crosshair);
   };
 
   useEffect(() => {
@@ -214,6 +330,9 @@ export function TraceChart({
     const markerEnd = readCssVariable(computed, "--otdr-marker-end", "#111827");
     const markerManual = readCssVariable(computed, "--otdr-marker-manual", "#a16207");
     const markerUnknown = readCssVariable(computed, "--otdr-marker-unknown", "#64748b");
+    const cursorAColor = readCssVariable(computed, "--otdr-cursor-a", "#7c3aed");
+    const cursorBColor = readCssVariable(computed, "--otdr-cursor-b", "#ea580c");
+    const cursorSpanColor = readCssVariable(computed, "--otdr-cursor-span", "rgba(124, 58, 237, 0.12)");
 
     if (containerRef.current) {
       containerRef.current.style.setProperty("--otdr-tooltip-bg-runtime", tooltipBackground);
@@ -254,6 +373,16 @@ export function TraceChart({
           selectedHaloColor: markerSelectedHalo,
           hoverRingColor: markerHoverRing,
           hoverHaloColor: markerHoverHalo,
+        });
+      },
+      drawCrosshair: () => {
+        drawMeasurementCursors(handle.ctx, measurementCursorsRef.current, viewportRef.current, canvasRect, {
+          cursorAColor,
+          cursorBColor,
+          cursorSpanColor,
+          labelBackground: crosshairLabelBackground,
+          labelTextColor: crosshairTextColor,
+          labelBorder: tooltipBorder,
         });
       },
       crosshair: crosshairRef.current,
@@ -327,19 +456,66 @@ export function TraceChart({
     };
 
     const onPointerDown = (event: PointerEvent): void => {
+      if (event.button !== 0) return;
+
+      const canvasRect = getCanvasRect(handle.canvas);
+      const cursorHit = hitTestMeasurementCursors(
+        measurementCursorsRef.current,
+        viewportRef.current,
+        canvasRect,
+        event.offsetX,
+        event.offsetY,
+      );
+
+      if (cursorHit) {
+        cursorDragRef.current = {
+          active: true,
+          pointerId: event.pointerId,
+          key: cursorHit,
+          moved: false,
+        };
+        handle.canvas.setPointerCapture(event.pointerId);
+        handle.canvas.style.cursor = "ew-resize";
+        return;
+      }
+
       dragRef.current = {
         active: true,
         pointerId: event.pointerId,
         lastX: event.offsetX,
         lastY: event.offsetY,
+        moved: false,
       };
       handle.canvas.setPointerCapture(event.pointerId);
       handle.canvas.style.cursor = "grabbing";
     };
 
     const onPointerMove = (event: PointerEvent): void => {
-      const drag = dragRef.current;
       const canvasRect = getCanvasRect(handle.canvas);
+      const cursorDrag = cursorDragRef.current;
+
+      if (cursorDrag.active && cursorDrag.pointerId === event.pointerId && cursorDrag.key) {
+        const cursor = resolveMeasurementCursorAtPointer(event.offsetX, event.offsetY, canvasRect);
+        if (cursor) {
+          const current = measurementCursorsRef.current;
+          const next = cursorDrag.key === "a" ? { ...current, a: cursor } : { ...current, b: cursor };
+          setMeasurementCursors(next);
+
+          setLiveLabel(
+            `Cursor ${cursorDrag.key.toUpperCase()}: ${formatDistance(cursor.distance, xUnitRef.current)}, ${formatPower(cursor.power, 2)}`,
+          );
+        }
+
+        cursorDragRef.current = {
+          ...cursorDrag,
+          moved: true,
+        };
+
+        scheduler.scheduleRender();
+        return;
+      }
+
+      const drag = dragRef.current;
       if (drag.active && drag.pointerId === event.pointerId) {
         const deltaX = event.offsetX - drag.lastX;
         const deltaY = event.offsetY - drag.lastY;
@@ -348,6 +524,7 @@ export function TraceChart({
           ...drag,
           lastX: event.offsetX,
           lastY: event.offsetY,
+          moved: drag.moved || Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0,
         };
         const next = panViewportByPixels(viewportRef.current, boundsRef.current, deltaX, deltaY, canvasRect);
         setViewport(next);
@@ -368,13 +545,13 @@ export function TraceChart({
         setLiveLabel(crosshair.label);
       }
 
-      const hit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
-      if (hit === null) {
+      const markerHit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
+      if (markerHit === null) {
         hoveredMarkerIndexRef.current = null;
         setTooltip(null);
       } else {
-        hoveredMarkerIndexRef.current = hit;
-        const marker = markersRef.current.find((candidate: EventMarker) => candidate.index === hit);
+        hoveredMarkerIndexRef.current = markerHit;
+        const marker = markersRef.current.find((candidate: EventMarker) => candidate.index === markerHit);
         if (marker) {
           const text = formatEventTooltip(marker, xUnitRef.current);
           const { width: tooltipWidth, height: tooltipHeight } = estimateTooltipSize(text);
@@ -388,23 +565,49 @@ export function TraceChart({
         }
       }
 
+      const cursorHit = hitTestMeasurementCursors(
+        measurementCursorsRef.current,
+        viewportRef.current,
+        canvasRect,
+        event.offsetX,
+        event.offsetY,
+      );
+      handle.canvas.style.cursor = cursorHit ? "ew-resize" : "crosshair";
+
       scheduler.scheduleRender();
     };
 
     const onPointerUp = (event: PointerEvent): void => {
+      const cursorDrag = cursorDragRef.current;
+      if (cursorDrag.active && cursorDrag.pointerId === event.pointerId) {
+        cursorDragRef.current = {
+          active: false,
+          pointerId: null,
+          key: null,
+          moved: false,
+        };
+
+        suppressClickRef.current = cursorDrag.moved;
+        handle.canvas.releasePointerCapture(event.pointerId);
+        handle.canvas.style.cursor = "crosshair";
+        return;
+      }
+
       if (dragRef.current.pointerId !== event.pointerId) return;
+      suppressClickRef.current = dragRef.current.moved;
       dragRef.current = {
         active: false,
         pointerId: null,
         lastX: 0,
         lastY: 0,
+        moved: false,
       };
       handle.canvas.releasePointerCapture(event.pointerId);
       handle.canvas.style.cursor = "crosshair";
     };
 
     const onPointerLeave = (): void => {
-      if (!dragRef.current.active) {
+      if (!dragRef.current.active && !cursorDragRef.current.active) {
         crosshairRef.current = null;
         hoveredMarkerIndexRef.current = null;
         setTooltip(null);
@@ -413,12 +616,37 @@ export function TraceChart({
     };
 
     const onClick = (event: MouseEvent): void => {
-      const hit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
-      if (hit === null) return;
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
 
-      const selected = eventsRef.current[hit];
-      if (!selected) return;
-      onEventClickRef.current?.(selected, hit);
+      const canvasRect = getCanvasRect(handle.canvas);
+      const cursorHit = hitTestMeasurementCursors(
+        measurementCursorsRef.current,
+        viewportRef.current,
+        canvasRect,
+        event.offsetX,
+        event.offsetY,
+      );
+      if (cursorHit) return;
+
+      const markerHit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
+      if (markerHit !== null) {
+        const selected = eventsRef.current[markerHit];
+        if (!selected) return;
+        onEventClickRef.current?.(selected, markerHit);
+        return;
+      }
+
+      const cursor = resolveMeasurementCursorAtPointer(event.offsetX, event.offsetY, canvasRect);
+      if (!cursor) return;
+
+      const current = measurementCursorsRef.current;
+      const next = !current.a ? { a: cursor, b: null } : !current.b ? { ...current, b: cursor } : { a: cursor, b: null };
+      setMeasurementCursors(next);
+
+      setLiveLabel(`Cursor ${!current.a || current.b ? "A" : "B"}: ${formatDistance(cursor.distance, xUnitRef.current)}`);
     };
 
     const onDoubleClick = (): void => {
@@ -449,7 +677,11 @@ export function TraceChart({
       canvasHandleRef.current = null;
       handle.dispose();
     };
-  }, [height, width]);
+  }, [height, isMeasurementControlled, width]);
+
+  useEffect(() => {
+    schedulerRef.current?.scheduleRender();
+  }, [normalizedControlledMeasurementCursors, resolvedMeasurementCursors]);
 
   useEffect(() => {
     schedulerRef.current?.scheduleRender();
@@ -503,6 +735,28 @@ export function TraceChart({
           setViewport(computeViewport(traceRef.current));
           return;
         }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          const current = measurementCursorsRef.current;
+          if (current.b) {
+            setMeasurementCursors({ ...current, b: null });
+            return;
+          }
+
+          if (current.a) {
+            setMeasurementCursors(createEmptyMeasurementCursors());
+          }
+          return;
+        }
+
+        if ((event.key === "a" || event.key === "A" || event.key === "b" || event.key === "B") && crosshairRef.current) {
+          event.preventDefault();
+          const key = event.key.toLowerCase() as "a" | "b";
+          const cursor = buildMeasurementCursor(crosshairRef.current);
+          const next = key === "a" ? { ...measurementCursorsRef.current, a: cursor } : { ...measurementCursorsRef.current, b: cursor };
+          setMeasurementCursors(next);
+          return;
+        }
 
         if (event.key === "Tab" && markersRef.current.length > 0) {
           event.preventDefault();
@@ -541,6 +795,20 @@ export function TraceChart({
       {tooltip ? (
         <div className={styles.tooltip} style={{ left: tooltip.left, top: tooltip.top }}>
           {tooltip.text}
+        </div>
+      ) : null}
+      {measurement ? (
+        <div className={styles.measurementHud}>
+          <div className={styles.measurementRow}>
+            <span className={styles.measurementLabel}>A</span>
+            <span>{`${formatDistance(measurement.distanceA, xUnit)} · ${formatPower(measurement.powerA, 2)}`}</span>
+          </div>
+          <div className={styles.measurementRow}>
+            <span className={styles.measurementLabel}>B</span>
+            <span>{`${formatDistance(measurement.distanceB, xUnit)} · ${formatPower(measurement.powerB, 2)}`}</span>
+          </div>
+          <div className={styles.measurementDelta}>{`Δ ${formatDistance(measurement.deltaDistance, xUnit)} | ${formatPower(measurement.deltaPower, 3)} | Avg ${measurement.avgAttenuationDbPerKm === null ? "N/A" : formatSlope(measurement.avgAttenuationDbPerKm, 3)}`}</div>
+          <div className={styles.measurementMeta}>{`Events ${measurement.eventCountBetween} · Reflective ${measurement.reflectiveEventCountBetween} · Splice Σ ${formatPower(measurement.spliceLossSumBetween, 3)}`}</div>
         </div>
       ) : null}
       {trace.length === 0 ? <div className={styles.empty}>No trace points available</div> : null}

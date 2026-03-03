@@ -12,3 +12,14 @@ export interface TraceOverlay {
   label: string;
   color: string;
 }
+
+export interface MeasurementCursor {
+  distance: number;
+  power: number;
+  traceIndex: number;
+}
+
+export interface MeasurementCursors {
+  a: MeasurementCursor | null;
+  b: MeasurementCursor | null;
+}

@@ -10,6 +10,7 @@ export * from "./utils/formatters.js";
 export * from "./utils/classifiers.js";
 export * from "./utils/loss-budget.js";
 export * from "./utils/downsampling.js";
+export * from "./utils/cursor-measurement.js";
 
 export * from "./adapters/normalize.js";
 
@@ -21,8 +22,10 @@ export * from "./canvas/render-pipeline.js";
 export * from "./canvas/interactions.js";
 export * from "./canvas/crosshair.js";
 export * from "./canvas/event-markers.js";
+export * from "./canvas/measurement-cursors.js";
 
 export * from "./components/TraceChart.js";
+export * from "./components/TraceMeasurementPanel.js";
 export * from "./components/TraceSummary.js";
 export * from "./components/EventTable.js";
 export * from "./components/LossBudgetChart.js";

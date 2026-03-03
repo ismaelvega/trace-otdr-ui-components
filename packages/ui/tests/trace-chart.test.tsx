@@ -116,4 +116,37 @@ describe("TraceChart", () => {
     unmount();
     consoleErrorSpy.mockRestore();
   });
+
+  it("places dual measurement cursors on successive clicks", () => {
+    const onMeasurementCursorsChange = vi.fn();
+    const trace = Array.from({ length: 80 }, (_, index) => ({
+      distance: index * 0.2,
+      power: 40 - index * 0.05,
+    }));
+
+    const { container } = render(
+      <TraceChart
+        trace={trace}
+        events={[]}
+        width={640}
+        height={300}
+        onMeasurementCursorsChange={onMeasurementCursorsChange}
+      />,
+    );
+
+    const canvas = container.querySelector("canvas");
+    if (!canvas) {
+      throw new Error("Expected canvas element");
+    }
+
+    fireEvent.click(canvas, { offsetX: 140, offsetY: 120 });
+    fireEvent.click(canvas, { offsetX: 320, offsetY: 130 });
+
+    const calls = onMeasurementCursorsChange.mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+
+    const last = calls[calls.length - 1]?.[0] as { a: unknown; b: unknown } | undefined;
+    expect(last?.a).not.toBeNull();
+    expect(last?.b).not.toBeNull();
+  });
 });

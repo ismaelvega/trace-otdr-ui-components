@@ -10,14 +10,17 @@ import {
 import type { SorData, SorResult } from "sor-reader";
 
 import { normalizeSorResult } from "../../adapters/normalize.js";
+import type { MeasurementCursors } from "../../types/chart.js";
 import type { AllThresholds } from "../../types/thresholds.js";
 import type { DistanceUnit } from "../../types/units.js";
 import { EventSelectionProvider, useEventSelection } from "../../hooks/useEventSelection.js";
+import { computeCursorMeasurement } from "../../utils/cursor-measurement.js";
 import { EventTable } from "../EventTable.js";
 import { FiberMap } from "../FiberMap.js";
 import { LossBudgetChart } from "../LossBudgetChart.js";
 import { PrintButton } from "../PrintButton.js";
 import { TraceChart } from "../TraceChart.js";
+import { TraceMeasurementPanel } from "../TraceMeasurementPanel.js";
 import { TraceSummary } from "../TraceSummary.js";
 import { EquipmentInfoPanel } from "../info/EquipmentInfoPanel.js";
 import { FiberInfoPanel } from "../info/FiberInfoPanel.js";
@@ -95,19 +98,34 @@ function TraceViewerInner({
   const normalized = useMemo(() => normalizeSorResult(result), [result]);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const { selectedIndex, select } = useEventSelection();
+  const [measurementCursors, setMeasurementCursors] = useState<MeasurementCursors>({
+    a: null,
+    b: null,
+  });
 
   const compact = useCompactLayout(layout, hostRef);
+  const measurement = useMemo(
+    () => computeCursorMeasurement(normalized.trace, normalized.keyEvents.events, measurementCursors),
+    [measurementCursors, normalized.keyEvents.events, normalized.trace],
+  );
 
   useEffect(() => {
     onExposeApi({
       select,
-      resetZoom: () => select(null),
+      resetZoom: () => {
+        select(null);
+        setMeasurementCursors({ a: null, b: null });
+      },
     });
   }, [onExposeApi, select]);
 
   useEffect(() => {
     onEventSelect?.(selectedIndex);
   }, [onEventSelect, selectedIndex]);
+
+  useEffect(() => {
+    setMeasurementCursors({ a: null, b: null });
+  }, [normalized]);
 
   const visible = new Set<SectionName>(
     sections ?? ["summary", "chart", "fiberMap", "eventTable", "lossBudget", "fiberInfo", "equipment", "measurement"],
@@ -129,7 +147,24 @@ function TraceViewerInner({
             events={normalized.keyEvents.events}
             xUnit={xUnit}
             selectedEvent={selectedIndex}
+            measurementCursors={measurementCursors}
             onEventClick={(_, index) => select(index)}
+            onMeasurementCursorsChange={setMeasurementCursors}
+          />
+          <TraceMeasurementPanel
+            cursors={measurementCursors}
+            measurement={measurement}
+            xUnit={xUnit}
+            onClear={() => setMeasurementCursors({ a: null, b: null })}
+            {...(measurement
+              ? {
+                  onSwap: () =>
+                    setMeasurementCursors((current) => ({
+                      a: current.b,
+                      b: current.a,
+                    })),
+                }
+              : {})}
           />
         </div>
       ) : null}

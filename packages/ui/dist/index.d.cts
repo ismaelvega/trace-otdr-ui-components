@@ -49,6 +49,15 @@ interface TraceOverlay {
     label: string;
     color: string;
 }
+interface MeasurementCursor {
+    distance: number;
+    power: number;
+    traceIndex: number;
+}
+interface MeasurementCursors {
+    a: MeasurementCursor | null;
+    b: MeasurementCursor | null;
+}
 
 declare function convertDistance(km: number, to: DistanceUnit): number;
 declare function convertDistanceLabel(unit: DistanceUnit): string;
@@ -75,6 +84,24 @@ interface LossBudget {
 declare function computeLossBudget(events: KeyEvents): LossBudget;
 
 declare function lttb(data: TracePoint[], targetCount: number): TracePoint[];
+
+interface CursorMeasurement {
+    a: MeasurementCursor;
+    b: MeasurementCursor;
+    start: MeasurementCursor;
+    end: MeasurementCursor;
+    distanceA: number;
+    distanceB: number;
+    deltaDistance: number;
+    powerA: number;
+    powerB: number;
+    deltaPower: number;
+    avgAttenuationDbPerKm: number | null;
+    eventCountBetween: number;
+    reflectiveEventCountBetween: number;
+    spliceLossSumBetween: number;
+}
+declare function computeCursorMeasurement(trace: TracePoint[], events: KeyEvent[], cursors: MeasurementCursors): CursorMeasurement | null;
 
 declare function normalizeSorResult(result: SorResult | SorData): SorData;
 
@@ -111,7 +138,7 @@ declare const MARGIN: {
     readonly top: 20;
     readonly right: 20;
     readonly bottom: 50;
-    readonly left: 70;
+    readonly left: 88;
 };
 declare function getPlotRect(canvasRect: CanvasRect): PlotRect;
 declare function dataToPixel(dataX: number, dataY: number, viewport: ViewportRange, canvasRect: CanvasRect): {
@@ -228,6 +255,24 @@ declare function drawEventMarkers(ctx: CanvasRenderingContext2D, markers: EventM
 declare function hitTestEventMarkers(markers: EventMarker[], px: number, py: number, hitRadius?: number): number | null;
 declare function formatEventTooltip(marker: EventMarker, unit: DistanceUnit): string;
 
+type MeasurementCursorKey = "a" | "b";
+interface CursorPoint {
+    key: MeasurementCursorKey;
+    px: number;
+    py: number;
+}
+interface MeasurementCursorStyle {
+    cursorAColor: string;
+    cursorBColor: string;
+    cursorSpanColor: string;
+    labelBackground: string;
+    labelTextColor: string;
+    labelBorder: string;
+}
+declare function toCursorPoints(cursors: MeasurementCursors, viewport: ViewportRange, canvasRect: CanvasRect): CursorPoint[];
+declare function hitTestMeasurementCursors(cursors: MeasurementCursors, viewport: ViewportRange, canvasRect: CanvasRect, px: number, py: number, radius?: number): MeasurementCursorKey | null;
+declare function drawMeasurementCursors(ctx: CanvasRenderingContext2D, cursors: MeasurementCursors, viewport: ViewportRange, canvasRect: CanvasRect, style?: Partial<MeasurementCursorStyle>): void;
+
 interface TraceChartProps {
     trace: TracePoint[];
     events?: KeyEvent[];
@@ -237,12 +282,24 @@ interface TraceChartProps {
     height?: number;
     xUnit?: DistanceUnit;
     selectedEvent?: number | null;
+    measurementCursors?: MeasurementCursors;
+    defaultMeasurementCursors?: MeasurementCursors;
     className?: string;
     onPointHover?: (point: TracePoint, index: number) => void;
     onEventClick?: (event: KeyEvent, index: number) => void;
+    onMeasurementCursorsChange?: (value: MeasurementCursors) => void;
     onZoomChange?: (viewport: ViewportRange) => void;
 }
-declare function TraceChart({ trace, events, overlays, viewport: controlledViewport, width, height, xUnit, selectedEvent, className, onPointHover, onEventClick, onZoomChange, }: TraceChartProps): ReactElement;
+declare function TraceChart({ trace, events, overlays, viewport: controlledViewport, width, height, xUnit, selectedEvent, measurementCursors: controlledMeasurementCursors, defaultMeasurementCursors, className, onPointHover, onEventClick, onMeasurementCursorsChange, onZoomChange, }: TraceChartProps): ReactElement;
+
+interface TraceMeasurementPanelProps {
+    cursors: MeasurementCursors;
+    measurement: CursorMeasurement | null;
+    xUnit?: DistanceUnit;
+    onSwap?: () => void;
+    onClear?: () => void;
+}
+declare function TraceMeasurementPanel({ cursors, measurement, xUnit, onSwap, onClear, }: TraceMeasurementPanelProps): ReactElement;
 
 interface TraceSummaryProps {
     result: SorResult | SorData;
@@ -402,4 +459,4 @@ interface TraceImageOptions {
 declare function traceToImageBlob(trace: TracePoint[], options?: TraceImageOptions): Promise<Blob>;
 declare function traceToImageURL(trace: TracePoint[], options?: TraceImageOptions): Promise<string>;
 
-export { type AllThresholds, type AssessmentStatus, type CanvasHandle, type CanvasRect, type CreateCanvasOptions, type CrosshairState, DISTANCE_CONVERSION_FACTORS, type DistanceUnit, EquipmentInfoPanel, type EquipmentInfoPanelProps, type EventCategory, type EventMarker, EventSelectionProvider, EventTable, type EventTableProps, type EventThresholds, FiberInfoPanel, type FiberInfoPanelProps, FiberMap, type FiberMapProps, type InfoEntry, InfoPanel, type InfoPanelProps, type LossBudget, LossBudgetChart, type LossBudgetChartProps, MARGIN, MeasurementInfoPanel, type MeasurementInfoPanelProps, type PlotRect, PrintButton, type PrintButtonProps, type RenderContext, type RenderScheduler, SorDropZone, type SorDropZoneProps, StatusBadge, type StatusBadgeProps, type StatusBadgeState, type SummaryThresholds, TraceChart, type TraceChartProps, TraceComparison, type TraceComparisonItem, type TraceComparisonProps, type TraceImageOptions, type TraceOverlay, TraceReport, type TraceReportProps, type TraceStyle, TraceSummary, type TraceSummaryProps, TraceViewer, type TraceViewerHandle, type TraceViewerProps, type ViewportRange, type ZoomAxis, type ZoomOptions, assessEvent, assessSummary, clampViewport, classifyEvent, computeEventMarkers, computeLossBudget, computeViewport, configureHiDpiCanvas, convertDistance, convertDistanceLabel, createCanvas, createRenderScheduler, dataToPixel, drawCrosshair, drawEventMarkers, drawTrace, drawTraceOverlays, drawXAxis, drawYAxis, findNearestTracePointIndex, formatDateTime, formatDistance, formatEventTooltip, formatPower, formatSlope, formatWavelength, getDevicePixelRatio, getPlotRect, getZoomAxisFromModifiers, hitTestEventMarkers, lttb, normalizeSorResult, panViewportByPixels, pixelToData, renderFrame, resolveCrosshairState, traceToImageBlob, traceToImageURL, useEventSelection, useThresholds, useTraceData, useZoomPan, zoomViewportAtPixel };
+export { type AllThresholds, type AssessmentStatus, type CanvasHandle, type CanvasRect, type CreateCanvasOptions, type CrosshairState, type CursorMeasurement, DISTANCE_CONVERSION_FACTORS, type DistanceUnit, EquipmentInfoPanel, type EquipmentInfoPanelProps, type EventCategory, type EventMarker, EventSelectionProvider, EventTable, type EventTableProps, type EventThresholds, FiberInfoPanel, type FiberInfoPanelProps, FiberMap, type FiberMapProps, type InfoEntry, InfoPanel, type InfoPanelProps, type LossBudget, LossBudgetChart, type LossBudgetChartProps, MARGIN, type MeasurementCursor, type MeasurementCursorKey, type MeasurementCursors, MeasurementInfoPanel, type MeasurementInfoPanelProps, type PlotRect, PrintButton, type PrintButtonProps, type RenderContext, type RenderScheduler, SorDropZone, type SorDropZoneProps, StatusBadge, type StatusBadgeProps, type StatusBadgeState, type SummaryThresholds, TraceChart, type TraceChartProps, TraceComparison, type TraceComparisonItem, type TraceComparisonProps, type TraceImageOptions, TraceMeasurementPanel, type TraceMeasurementPanelProps, type TraceOverlay, TraceReport, type TraceReportProps, type TraceStyle, TraceSummary, type TraceSummaryProps, TraceViewer, type TraceViewerHandle, type TraceViewerProps, type ViewportRange, type ZoomAxis, type ZoomOptions, assessEvent, assessSummary, clampViewport, classifyEvent, computeCursorMeasurement, computeEventMarkers, computeLossBudget, computeViewport, configureHiDpiCanvas, convertDistance, convertDistanceLabel, createCanvas, createRenderScheduler, dataToPixel, drawCrosshair, drawEventMarkers, drawMeasurementCursors, drawTrace, drawTraceOverlays, drawXAxis, drawYAxis, findNearestTracePointIndex, formatDateTime, formatDistance, formatEventTooltip, formatPower, formatSlope, formatWavelength, getDevicePixelRatio, getPlotRect, getZoomAxisFromModifiers, hitTestEventMarkers, hitTestMeasurementCursors, lttb, normalizeSorResult, panViewportByPixels, pixelToData, renderFrame, resolveCrosshairState, toCursorPoints, traceToImageBlob, traceToImageURL, useEventSelection, useThresholds, useTraceData, useZoomPan, zoomViewportAtPixel };

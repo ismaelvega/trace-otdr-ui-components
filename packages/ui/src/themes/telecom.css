@@ -73,6 +73,9 @@
   --otdr-marker-selected-halo: rgba(29, 112, 184, 0.28);
   --otdr-marker-hover-ring: #0891b2;
   --otdr-marker-hover-halo: rgba(8, 145, 178, 0.24);
+  --otdr-cursor-a: #6d28d9;
+  --otdr-cursor-b: #c2410c;
+  --otdr-cursor-span: rgba(109, 40, 217, 0.14);
 
   --otdr-row-alt: #f1f7fd;
   --otdr-row-hover: #deebf7;

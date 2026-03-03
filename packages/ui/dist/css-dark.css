@@ -107,6 +107,9 @@
   --otdr-marker-selected-halo: rgba(37, 99, 235, 0.28);
   --otdr-marker-hover-ring: #0891b2;
   --otdr-marker-hover-halo: rgba(8, 145, 178, 0.24);
+  --otdr-cursor-a: #7c3aed;
+  --otdr-cursor-b: #ea580c;
+  --otdr-cursor-span: rgba(124, 58, 237, 0.12);
   --otdr-row-alt: #f7fbff;
   --otdr-row-hover: #eaf4ff;
   --otdr-row-selected: #dcecff;
@@ -185,6 +188,9 @@
   --otdr-marker-selected-halo: rgba(96, 165, 250, 0.34);
   --otdr-marker-hover-ring: #22d3ee;
   --otdr-marker-hover-halo: rgba(34, 211, 238, 0.28);
+  --otdr-cursor-a: #c4b5fd;
+  --otdr-cursor-b: #fb923c;
+  --otdr-cursor-span: rgba(167, 139, 250, 0.18);
   --otdr-row-alt: #152a46;
   --otdr-row-hover: #1c3659;
   --otdr-row-selected: #264a79;

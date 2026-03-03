@@ -6,7 +6,7 @@ import {
   TraceSummary,
   TraceViewer,
   normalizeSorResult
-} from "../chunk-JQLARVF7.js";
+} from "../chunk-KAUXE3SD.js";
 
 // src/web-components/index.ts
 import { createElement as createElement2 } from "react";

@@ -1,18 +1,18 @@
-# @trace-otdr/ui
+# @ismaelvega/trace-otdr-ui
 
 TypeScript + React OTDR component library for visualizing `sor-reader` results.
 
 ## Install
 
 ```bash
-npm install @trace-otdr/ui sor-reader react react-dom
+npm install @ismaelvega/trace-otdr-ui sor-reader react react-dom
 ```
 
 ## Quick Start
 
 ```tsx
-import { TraceViewer } from "@trace-otdr/ui";
-import "@trace-otdr/ui/css";
+import { TraceViewer } from "@ismaelvega/trace-otdr-ui";
+import "@ismaelvega/trace-otdr-ui/css";
 
 function App({ result }) {
   return <TraceViewer result={result} />;
@@ -21,9 +21,9 @@ function App({ result }) {
 
 ## CSS Themes
 
-- `@trace-otdr/ui/css` — default light theme
-- `@trace-otdr/ui/css/dark` — dark tokens
-- `@trace-otdr/ui/css/telecom` — telecom preset
+- `@ismaelvega/trace-otdr-ui/css` — default light theme
+- `@ismaelvega/trace-otdr-ui/css/dark` — dark tokens
+- `@ismaelvega/trace-otdr-ui/css/telecom` — telecom preset
 
 Set the theme with `data-theme`:
 
@@ -37,12 +37,12 @@ Set the theme with `data-theme`:
 - `TraceComparison`, `TraceReport`, `SorDropZone`, `PrintButton`
 - Hooks: `useZoomPan`, `useEventSelection`, `useTraceData`, `useThresholds`
 - Utilities: formatters, conversions, classifiers, loss budget, downsampling, image export
-- Web components entry: `@trace-otdr/ui/web-components`
+- Web components entry: `@ismaelvega/trace-otdr-ui/web-components`
 
 ## Web Components
 
 ```js
-import "@trace-otdr/ui/web-components";
+import "@ismaelvega/trace-otdr-ui/web-components";
 
 const viewer = document.querySelector("otdr-trace-viewer");
 viewer.data = result;

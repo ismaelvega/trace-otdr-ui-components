@@ -4,7 +4,7 @@ Monorepo for OTDR UI rendering and demos.
 
 ## Workspace Layout
 
-- `packages/ui` — `@trace-otdr/ui` component library
+- `packages/ui` — `@ismaelvega/trace-otdr-ui` component library
 - `sor-reader` — SOR parsing package used by UI
 - `apps/demo` — React playground/demo app
 - `apps/demo-vanilla` — Custom Elements demo
@@ -19,9 +19,9 @@ Monorepo for OTDR UI rendering and demos.
 
 ## Release Package
 
-The publishable package is `packages/ui` (`@trace-otdr/ui`).
+The publishable package is `packages/ui` (`@ismaelvega/trace-otdr-ui`).
 
 ## Release Commands
 
-- `npm run release:ui:check` — run full verification + npm publish dry-run for `@trace-otdr/ui`
-- `npm run release:ui:publish` — run full verification + publish `@trace-otdr/ui`
+- `npm run release:ui:check` — run full verification + npm publish dry-run for `@ismaelvega/trace-otdr-ui`
+- `npm run release:ui:publish` — run full verification + publish `@ismaelvega/trace-otdr-ui`

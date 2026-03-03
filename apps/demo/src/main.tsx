@@ -12,7 +12,7 @@ import {
   TraceSummary,
   TraceViewer,
   normalizeSorResult,
-} from "@trace-otdr/ui";
+} from "@ismaelvega/trace-otdr-ui";
 import "../../../packages/ui/src/themes/default.css";
 import "../../../packages/ui/src/themes/dark.css";
 import "../../../packages/ui/src/themes/telecom.css";

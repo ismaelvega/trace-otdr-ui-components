@@ -1,6 +1,6 @@
 # OTDR Trace UI Components Library — Proposal
 
-**Package name:** `@trace-otdr/ui`
+**Package name:** `@ismaelvega/trace-otdr-ui`
 **Data source:** `sor-reader` (zero-dependency SOR parser)
 **Target frameworks:** React (primary), vanilla HTML/JS (secondary via web components)
 **Date:** 2026-03-03
@@ -21,7 +21,7 @@ The library targets two audiences:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                     @trace-otdr/ui                       │
+│                     @ismaelvega/trace-otdr-ui                       │
 │                                                          │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │              Composite Components                   │ │
@@ -619,7 +619,7 @@ A professional theme with muted colors matching traditional OTDR test equipment 
 ## 7. Package Exports
 
 ```
-@trace-otdr/ui
+@ismaelvega/trace-otdr-ui
 ├── components/
 │   ├── TraceChart
 │   ├── EventMarkers
@@ -714,7 +714,7 @@ A professional theme with muted colors matching traditional OTDR test equipment 
 ### Minimal: Drop a file, see the trace
 
 ```tsx
-import { SorDropZone, TraceChart } from '@trace-otdr/ui';
+import { SorDropZone, TraceChart } from '@ismaelvega/trace-otdr-ui';
 import { useState } from 'react';
 
 function App() {
@@ -739,8 +739,8 @@ function App() {
 ### Full viewer from a file
 
 ```tsx
-import { TraceViewer, useTraceData } from '@trace-otdr/ui';
-import '@trace-otdr/ui/themes/default.css';
+import { TraceViewer, useTraceData } from '@ismaelvega/trace-otdr-ui';
+import '@ismaelvega/trace-otdr-ui/themes/default.css';
 
 function App({ sorFile }: { sorFile: Uint8Array }) {
   const { result, loading, error } = useTraceData(sorFile);
@@ -764,8 +764,8 @@ function App({ sorFile }: { sorFile: Uint8Array }) {
 ### Vanilla HTML (Web Component)
 
 ```html
-<script type="module" src="@trace-otdr/ui/web-components/otdr-trace-viewer.js"></script>
-<link rel="stylesheet" href="@trace-otdr/ui/themes/default.css">
+<script type="module" src="@ismaelvega/trace-otdr-ui/web-components/otdr-trace-viewer.js"></script>
+<link rel="stylesheet" href="@ismaelvega/trace-otdr-ui/themes/default.css">
 
 <otdr-trace-viewer id="viewer"></otdr-trace-viewer>
 

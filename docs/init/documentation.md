@@ -1,8 +1,8 @@
-# @trace-otdr/ui Documentation
+# @ismaelvega/trace-otdr-ui Documentation
 
 ## Project Status
 
-`@trace-otdr/ui` is implemented end-to-end for the planned milestones in this repository scope.
+`@ismaelvega/trace-otdr-ui` is implemented end-to-end for the planned milestones in this repository scope.
 
 Completed areas:
 
@@ -20,11 +20,11 @@ Completed areas:
 
 ## Package Entry Points
 
-From `@trace-otdr/ui`:
+From `@ismaelvega/trace-otdr-ui`:
 
-- Main API: `@trace-otdr/ui`
-- CSS: `@trace-otdr/ui/css`, `@trace-otdr/ui/css/dark`, `@trace-otdr/ui/css/telecom`
-- Web Components: `@trace-otdr/ui/web-components`
+- Main API: `@ismaelvega/trace-otdr-ui`
+- CSS: `@ismaelvega/trace-otdr-ui/css`, `@ismaelvega/trace-otdr-ui/css/dark`, `@ismaelvega/trace-otdr-ui/css/telecom`
+- Web Components: `@ismaelvega/trace-otdr-ui/web-components`
 
 ## Release Metadata
 

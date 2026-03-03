@@ -1,4 +1,4 @@
-# @trace-otdr/ui — Implementation Plan
+# @ismaelvega/trace-otdr-ui — Implementation Plan
 
 ## Project Overview
 
@@ -6,7 +6,7 @@ Build a TypeScript/React component library for rendering OTDR trace data from `s
 
 ## Implementation Notes
 
-- 2026-03-03: Completed milestones 0–15 implementation scope for `@trace-otdr/ui`, including React components, canvas engine, hooks, theming, report/export, web components, demos, and release artifacts.
+- 2026-03-03: Completed milestones 0–15 implementation scope for `@ismaelvega/trace-otdr-ui`, including React components, canvas engine, hooks, theming, report/export, web components, demos, and release artifacts.
 - 2026-03-03: Kept `sor-reader/` at the workspace root path and linked it as a workspace/local dependency instead of moving to `packages/sor-reader/`, to avoid breaking existing parser workflows in this repository.
 - 2026-03-03: Fixed root test determinism by adding root-level `jsdom` so `npm run test` resolves Vitest jsdom environments consistently.
 - 2026-03-03: Fixed runtime/test bugs discovered during final verification: guarded `row.scrollIntoView` in `EventTable`, added `traceToImageURL` fallback when `URL.createObjectURL` is unavailable.
@@ -45,7 +45,7 @@ Build a TypeScript/React component library for rendering OTDR trace data from `s
   ```
 - [x] Keep `sor-reader/` at workspace root and link it from UI package (equivalent dependency wiring without path migration)
 - [x] Create `packages/ui/package.json`:
-  - Name: `@trace-otdr/ui`
+  - Name: `@ismaelvega/trace-otdr-ui`
   - Peer deps: `react >=18`, `react-dom >=18`
   - Dev deps: `sor-reader` (workspace link), `typescript`, `tsup`, `vitest`, `@testing-library/react`, `jsdom`
   - Exports: `.` (React), `./css` (default theme), `./web-components` (Custom Elements)
@@ -164,7 +164,7 @@ The UI library should work with **both**:
   - This keeps the API ergonomic regardless of which sor-reader export the consumer uses
 - [x] Unit tests: roundtrip normalization with fixture data
 
-**Exit criteria:** All utility functions implemented and tested. `npm test` passes. Types are importable from `@trace-otdr/ui`. Zero runtime dependencies added.
+**Exit criteria:** All utility functions implemented and tested. `npm test` passes. Types are importable from `@ismaelvega/trace-otdr-ui`. Zero runtime dependencies added.
 
 ---
 
@@ -534,10 +534,10 @@ The UI library should work with **both**:
 
 ### 7.3 CSS Entry Points
 
-- [x] `@trace-otdr/ui/css` → exports `default.css` (light theme)
-- [x] `@trace-otdr/ui/css/dark` → exports `dark.css`
-- [x] `@trace-otdr/ui/css/telecom` → exports `telecom.css`
-- [x] Document in README: `import '@trace-otdr/ui/css'` to load styles
+- [x] `@ismaelvega/trace-otdr-ui/css` → exports `default.css` (light theme)
+- [x] `@ismaelvega/trace-otdr-ui/css/dark` → exports `dark.css`
+- [x] `@ismaelvega/trace-otdr-ui/css/telecom` → exports `telecom.css`
+- [x] Document in README: `import '@ismaelvega/trace-otdr-ui/css'` to load styles
 
 **Exit criteria:** All components respect the theming tokens. Switching `data-theme="dark"` on the root element instantly updates all component visuals including the canvas chart. Three themes look polished in the playground.
 
@@ -718,7 +718,7 @@ The UI library should work with **both**:
 - [x] `otdr-drop-zone` — wraps `SorDropZone`
 - [x] Auto-register all elements when the web-components entry point is imported:
   ```js
-  import '@trace-otdr/ui/web-components';
+  import '@ismaelvega/trace-otdr-ui/web-components';
   // Now <otdr-trace-viewer> is available in HTML
   ```
 
@@ -726,7 +726,7 @@ The UI library should work with **both**:
 
 - [x] `apps/demo-vanilla/index.html` — Complete working example:
   ```html
-  <script type="module" src="@trace-otdr/ui/web-components"></script>
+  <script type="module" src="@ismaelvega/trace-otdr-ui/web-components"></script>
   <otdr-drop-zone id="drop"></otdr-drop-zone>
   <otdr-trace-viewer id="viewer"></otdr-trace-viewer>
   <script>
@@ -871,7 +871,7 @@ The UI library should work with **both**:
 
 ## Milestone 15 — Publish v1.0
 
-**Goal:** Package and publish `@trace-otdr/ui` to npm.
+**Goal:** Package and publish `@ismaelvega/trace-otdr-ui` to npm.
 
 ### 15.1 Pre-Release Checklist
 
@@ -892,7 +892,7 @@ The UI library should work with **both**:
 - [x] Build: `npm run build`
 - [x] Dry run: `npm publish --dry-run` — verify package contents
 - [x] Publish: `npm publish --access public`
-- [x] Verify install in a clean project: `npm install @trace-otdr/ui sor-reader`
+- [x] Verify install in a clean project: `npm install @ismaelvega/trace-otdr-ui sor-reader`
 - [x] Verify the quick-start example from the README works
 
 ### 15.3 Post-Publish
@@ -902,7 +902,7 @@ The UI library should work with **both**:
 - [x] Demo site live and linked from README
 - [x] Announce (if applicable)
 
-**Exit criteria:** `@trace-otdr/ui` is on npm, installable, and works end-to-end per the README. Demo site is live.
+**Exit criteria:** `@ismaelvega/trace-otdr-ui` is on npm, installable, and works end-to-end per the README. Demo site is live.
 
 ---
 

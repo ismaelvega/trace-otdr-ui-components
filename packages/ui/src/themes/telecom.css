@@ -1,0 +1,28 @@
+@import "./tokens.css";
+
+[data-theme="telecom"] {
+  --otdr-bg: #e6edf4;
+  --otdr-surface: #edf3f9;
+  --otdr-panel: #f8fbff;
+  --otdr-border: #a8bfd8;
+  --otdr-border-subtle: #c7d7e8;
+  --otdr-text-strong: #102a43;
+  --otdr-text-muted: #334e68;
+
+  --otdr-status-pass-bg: #d9f0df;
+  --otdr-status-pass-border: #2f855a;
+  --otdr-status-pass-fg: #1b4332;
+  --otdr-status-warn-bg: #fde9c8;
+  --otdr-status-warn-border: #dd6b20;
+  --otdr-status-warn-fg: #7b341e;
+  --otdr-status-fail-bg: #f9d6d5;
+  --otdr-status-fail-border: #c53030;
+  --otdr-status-fail-fg: #7f1d1d;
+
+  --otdr-chart-bg: #f8fbff;
+  --otdr-trace-primary: #0070a8;
+  --otdr-axis-color: #3a506b;
+  --otdr-axis-label: #102a43;
+  --otdr-grid-color: #c7d7e8;
+  --otdr-crosshair-color: #486581;
+}

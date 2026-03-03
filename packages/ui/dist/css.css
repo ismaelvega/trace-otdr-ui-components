@@ -1,0 +1,46 @@
+/* src/themes/tokens.css */
+:root {
+  --otdr-font-family:
+    "IBM Plex Sans",
+    "Segoe UI",
+    sans-serif;
+  --otdr-radius-md: 8px;
+  --otdr-radius-lg: 10px;
+  --otdr-radius-pill: 999px;
+  --otdr-space-1: 4px;
+  --otdr-space-2: 8px;
+  --otdr-space-3: 12px;
+  --otdr-space-4: 16px;
+  --otdr-bg: #f1f5f9;
+  --otdr-surface: #f8fafc;
+  --otdr-panel: #ffffff;
+  --otdr-border: #cbd5e1;
+  --otdr-border-subtle: #e2e8f0;
+  --otdr-text-strong: #0f172a;
+  --otdr-text-muted: #475569;
+  --otdr-status-pass-bg: #dcfce7;
+  --otdr-status-pass-border: #22c55e;
+  --otdr-status-pass-fg: #14532d;
+  --otdr-status-warn-bg: #fef3c7;
+  --otdr-status-warn-border: #f59e0b;
+  --otdr-status-warn-fg: #92400e;
+  --otdr-status-fail-bg: #fee2e2;
+  --otdr-status-fail-border: #ef4444;
+  --otdr-status-fail-fg: #991b1b;
+  --otdr-status-neutral-bg: #e2e8f0;
+  --otdr-status-neutral-border: #94a3b8;
+  --otdr-status-neutral-fg: #1e293b;
+  --otdr-chart-bg: #ffffff;
+  --otdr-trace-primary: #0f766e;
+  --otdr-axis-color: #334155;
+  --otdr-axis-label: #0f172a;
+  --otdr-grid-color: #cbd5e1;
+  --otdr-crosshair-color: #64748b;
+}
+
+/* src/themes/default.css */
+[data-theme=light],
+:root {
+  color-scheme: light;
+}
+/*# sourceMappingURL=css.css.map */

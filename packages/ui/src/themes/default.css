@@ -1,0 +1,6 @@
+@import "./tokens.css";
+
+[data-theme="light"],
+:root {
+  color-scheme: light;
+}

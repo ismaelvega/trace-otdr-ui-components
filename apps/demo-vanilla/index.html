@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OTDR Web Components Demo</title>
+  </head>
+  <body>
+    <h1>Web Components Demo</h1>
+    <p>Standalone demo using the built web-components bundle from this workspace.</p>
+    <otdr-drop-zone id="drop"></otdr-drop-zone>
+    <otdr-trace-viewer id="viewer"></otdr-trace-viewer>
+    <script type="module" src="../../packages/ui/dist/web-components/index.js"></script>
+    <script>
+      const drop = document.getElementById("drop");
+      const viewer = document.getElementById("viewer");
+      if (drop && viewer) {
+        drop.addEventListener("result", (event) => {
+          viewer.data = event.detail;
+        });
+      }
+    </script>
+  </body>
+</html>

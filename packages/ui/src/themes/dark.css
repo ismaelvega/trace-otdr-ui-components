@@ -1,0 +1,29 @@
+@import "./tokens.css";
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --otdr-bg: #0f172a;
+  --otdr-surface: #111827;
+  --otdr-panel: #1f2937;
+  --otdr-border: #334155;
+  --otdr-border-subtle: #374151;
+  --otdr-text-strong: #f8fafc;
+  --otdr-text-muted: #cbd5e1;
+
+  --otdr-status-pass-bg: #052e16;
+  --otdr-status-pass-border: #16a34a;
+  --otdr-status-pass-fg: #bbf7d0;
+  --otdr-status-warn-bg: #451a03;
+  --otdr-status-warn-border: #d97706;
+  --otdr-status-warn-fg: #fde68a;
+  --otdr-status-fail-bg: #450a0a;
+  --otdr-status-fail-border: #dc2626;
+  --otdr-status-fail-fg: #fecaca;
+
+  --otdr-chart-bg: #0b1220;
+  --otdr-trace-primary: #14b8a6;
+  --otdr-axis-color: #94a3b8;
+  --otdr-axis-label: #e2e8f0;
+  --otdr-grid-color: #334155;
+  --otdr-crosshair-color: #94a3b8;
+}

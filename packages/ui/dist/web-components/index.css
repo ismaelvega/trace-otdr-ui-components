@@ -1,0 +1,406 @@
+/* src/components/TraceChart.module.css */
+.root {
+  position: relative;
+  min-width: 0;
+  user-select: none;
+  font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+  background: var(--otdr-chart-bg, #ffffff);
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 10px);
+  overflow: hidden;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+.tooltip {
+  position: absolute;
+  z-index: 10;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.95);
+  color: #0f172a;
+  font: 12px/1.4 sans-serif;
+  pointer-events: none;
+  white-space: pre-line;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+}
+.liveRegion {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--otdr-text-muted, #475569);
+  font-size: 14px;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    transition: none;
+  }
+}
+
+/* src/components/primitives/StatusBadge.module.css */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--otdr-radius-pill, 999px);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+.pass {
+  background: var(--otdr-status-pass-bg, #dcfce7);
+  color: var(--otdr-status-pass-fg, #14532d);
+  border-color: var(--otdr-status-pass-border, #86efac);
+}
+.warn {
+  background: var(--otdr-status-warn-bg, #fef3c7);
+  color: var(--otdr-status-warn-fg, #92400e);
+  border-color: var(--otdr-status-warn-border, #fcd34d);
+}
+.fail {
+  background: var(--otdr-status-fail-bg, #fee2e2);
+  color: var(--otdr-status-fail-fg, #991b1b);
+  border-color: var(--otdr-status-fail-border, #fca5a5);
+}
+.neutral {
+  background: var(--otdr-status-neutral-bg, #e2e8f0);
+  color: var(--otdr-status-neutral-fg, #1e293b);
+  border-color: var(--otdr-status-neutral-border, #cbd5e1);
+}
+
+/* src/components/EventTable.module.css */
+.wrapper {
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 10px);
+  overflow: auto;
+  background: var(--otdr-panel, #ffffff);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.head th {
+  position: sticky;
+  top: 0;
+  background: var(--otdr-surface, #f8fafc);
+  color: var(--otdr-text-muted, #475569);
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--otdr-border, #cbd5e1);
+  cursor: pointer;
+}
+.body td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--otdr-border-subtle, #e2e8f0);
+}
+.body tr:nth-child(even) {
+  background: var(--otdr-row-alt, #f8fafc);
+}
+.body tr:hover {
+  background: var(--otdr-row-hover, #e2e8f0);
+}
+.selected {
+  background: var(--otdr-row-selected, #dbeafe) !important;
+}
+.footer td {
+  padding: 8px 10px;
+  font-weight: 600;
+  background: var(--otdr-surface, #f8fafc);
+}
+.typeCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.icon {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* src/components/FiberMap.module.css */
+.root {
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 10px);
+  background: var(--otdr-panel, #ffffff);
+  padding: 12px;
+  overflow: auto;
+}
+.svg {
+  width: 100%;
+  height: 160px;
+  display: block;
+}
+.label {
+  fill: var(--otdr-text-muted, #475569);
+  font-size: 12px;
+}
+.event {
+  cursor: pointer;
+}
+.selected {
+  stroke: #1d4ed8;
+  stroke-width: 3;
+}
+
+/* src/components/TraceSummary.module.css */
+.root {
+  position: relative;
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 10px);
+  padding: 14px;
+  background: var(--otdr-surface, #f8fafc);
+}
+.badge {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+.card {
+  border: 1px solid var(--otdr-border-subtle, #e2e8f0);
+  border-radius: var(--otdr-radius-md, 8px);
+  background: var(--otdr-panel, #ffffff);
+  padding: 10px;
+}
+.value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--otdr-text-strong, #0f172a);
+}
+.label {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--otdr-text-muted, #475569);
+}
+
+/* src/components/LossBudgetChart.module.css */
+.root {
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 10px);
+  background: var(--otdr-panel, #ffffff);
+  padding: 10px;
+}
+.chart {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+.row {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.track {
+  position: relative;
+  height: 18px;
+  background: var(--otdr-surface, #f8fafc);
+  border: 1px solid var(--otdr-border-subtle, #e2e8f0);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: 4px;
+}
+.pass {
+  background: var(--otdr-status-pass-border, #22c55e);
+}
+.warn {
+  background: var(--otdr-status-warn-border, #f59e0b);
+}
+.fail {
+  background: var(--otdr-status-fail-border, #ef4444);
+}
+.selected {
+  outline: 2px solid #1d4ed8;
+}
+.threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed #64748b;
+  pointer-events: none;
+}
+.label {
+  white-space: nowrap;
+}
+.value {
+  white-space: nowrap;
+}
+.vertical .chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 10px;
+}
+.vertical .row {
+  grid-template-columns: 1fr;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+}
+.trackVertical {
+  width: 28px;
+  height: 120px;
+}
+.barVertical {
+  inset: auto 0 0 0;
+  width: auto;
+  height: 0;
+}
+.thresholdVertical {
+  left: 0;
+  right: 0;
+  top: auto;
+  bottom: 0;
+  width: auto;
+  border-left: 0;
+  border-bottom: 1px dashed #64748b;
+}
+
+/* src/components/info/InfoPanel.module.css */
+.root {
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 10px);
+  background: var(--otdr-panel, #ffffff);
+}
+.summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+.header {
+  padding: 10px 12px;
+  font-weight: 700;
+}
+.body {
+  padding: 8px 12px 12px;
+}
+.list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.term {
+  color: var(--otdr-text-muted, #475569);
+  font-size: 12px;
+}
+.value {
+  margin: 0;
+  color: var(--otdr-text-strong, #0f172a);
+  font-size: 13px;
+  text-align: right;
+}
+
+/* src/components/TraceViewer/TraceViewer.module.css */
+.root {
+  display: grid;
+  gap: 12px;
+  font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+  color: var(--otdr-text-strong, #0f172a);
+}
+.full {
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas: "summary summary" "chart chart" "fibermap fibermap" "table losschart" "fiber equip" "measure measure";
+}
+.compact {
+  grid-template-columns: 1fr;
+  grid-template-areas: "summary" "chart" "fibermap" "table" "losschart" "fiber" "equip" "measure";
+}
+.summary {
+  grid-area: summary;
+}
+.chart {
+  grid-area: chart;
+}
+.fibermap {
+  grid-area: fibermap;
+}
+.table {
+  grid-area: table;
+}
+.losschart {
+  grid-area: losschart;
+}
+.fiber {
+  grid-area: fiber;
+}
+.equip {
+  grid-area: equip;
+}
+.measure {
+  grid-area: measure;
+}
+@media (max-width: 1200px) {
+  .full {
+    grid-template-columns: 1fr;
+    grid-template-areas: "summary" "chart" "fibermap" "table" "losschart" "fiber" "equip" "measure";
+  }
+}
+
+/* src/components/SorDropZone.module.css */
+.root {
+  border: 2px dashed var(--otdr-border, #94a3b8);
+  border-radius: var(--otdr-radius-lg, 10px);
+  padding: 18px;
+  text-align: center;
+  background: var(--otdr-surface, #f8fafc);
+  color: var(--otdr-text-muted, #475569);
+  cursor: pointer;
+}
+.hover {
+  border-color: #1d4ed8;
+  background: #dbeafe;
+}
+.loading {
+  border-color: #0f766e;
+}
+.error {
+  border-color: #b91c1c;
+  color: #991b1b;
+}
+.input {
+  display: none;
+}
+/*# sourceMappingURL=index.css.map */

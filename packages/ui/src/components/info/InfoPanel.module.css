@@ -1,0 +1,44 @@
+.root {
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 10px);
+  background: var(--otdr-panel, #ffffff);
+}
+
+.summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.header {
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.body {
+  padding: 8px 12px 12px;
+}
+
+.list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.term {
+  color: var(--otdr-text-muted, #475569);
+  font-size: 12px;
+}
+
+.value {
+  margin: 0;
+  color: var(--otdr-text-strong, #0f172a);
+  font-size: 13px;
+  text-align: right;
+}

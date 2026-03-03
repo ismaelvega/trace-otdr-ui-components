@@ -1,0 +1,63 @@
+.root {
+  background: #ffffff;
+  color: #111827;
+  padding: 16px;
+  border: 1px solid #d1d5db;
+  font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #111827;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.section {
+  margin-bottom: 12px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table th,
+.table td {
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.trace {
+  width: 100%;
+  border: 1px solid #d1d5db;
+}
+
+.footer {
+  border-top: 1px solid #d1d5db;
+  padding-top: 8px;
+}
+
+@media print {
+  .root {
+    border: none;
+    padding: 0;
+  }
+
+  .noprint {
+    display: none !important;
+  }
+
+  .pageBreakBefore {
+    break-before: page;
+  }
+
+  .noSplitRow {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

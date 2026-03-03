@@ -1,0 +1,54 @@
+.root {
+  display: grid;
+  gap: 12px;
+  font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+  color: var(--otdr-text-strong, #0f172a);
+}
+
+.full {
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "summary summary"
+    "chart chart"
+    "fibermap fibermap"
+    "table losschart"
+    "fiber equip"
+    "measure measure";
+}
+
+.compact {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "summary"
+    "chart"
+    "fibermap"
+    "table"
+    "losschart"
+    "fiber"
+    "equip"
+    "measure";
+}
+
+.summary { grid-area: summary; }
+.chart { grid-area: chart; }
+.fibermap { grid-area: fibermap; }
+.table { grid-area: table; }
+.losschart { grid-area: losschart; }
+.fiber { grid-area: fiber; }
+.equip { grid-area: equip; }
+.measure { grid-area: measure; }
+
+@media (max-width: 1200px) {
+  .full {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "summary"
+      "chart"
+      "fibermap"
+      "table"
+      "losschart"
+      "fiber"
+      "equip"
+      "measure";
+  }
+}

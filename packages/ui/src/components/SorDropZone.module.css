@@ -1,0 +1,27 @@
+.root {
+  border: 2px dashed var(--otdr-border, #94a3b8);
+  border-radius: var(--otdr-radius-lg, 10px);
+  padding: 18px;
+  text-align: center;
+  background: var(--otdr-surface, #f8fafc);
+  color: var(--otdr-text-muted, #475569);
+  cursor: pointer;
+}
+
+.hover {
+  border-color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.loading {
+  border-color: #0f766e;
+}
+
+.error {
+  border-color: #b91c1c;
+  color: #991b1b;
+}
+
+.input {
+  display: none;
+}

@@ -52,7 +52,7 @@ import {
   resolveCrosshairState,
   useEventSelection,
   zoomViewportAtPixel
-} from "./chunk-D5W6UXM6.js";
+} from "./chunk-JQLARVF7.js";
 
 // src/utils/loss-budget.ts
 function parseNumeric(input) {
@@ -144,8 +144,8 @@ function TraceComparison({ traces, mode = "overlay", syncZoom = true }) {
   const [sharedSelection, setSharedSelection] = useState(null);
   const [sharedViewport, setSharedViewport] = useState(void 0);
   if (mode === "side-by-side") {
-    return /* @__PURE__ */ jsx("section", { className: TraceComparison_default.root, children: /* @__PURE__ */ jsx("div", { className: TraceComparison_default.sideBySide, children: normalized.map((item) => /* @__PURE__ */ jsxs("article", { children: [
-      /* @__PURE__ */ jsx("h3", { children: item.label }),
+    return /* @__PURE__ */ jsx("section", { className: TraceComparison_default.root, children: /* @__PURE__ */ jsx("div", { className: TraceComparison_default.sideBySide, children: normalized.map((item) => /* @__PURE__ */ jsxs("article", { className: TraceComparison_default.panel, children: [
+      /* @__PURE__ */ jsx("h3", { className: TraceComparison_default.title, children: item.label }),
       /* @__PURE__ */ jsx(TraceSummary, { result: item.data }),
       /* @__PURE__ */ jsx(
         TraceChart,
@@ -164,7 +164,10 @@ function TraceComparison({ traces, mode = "overlay", syncZoom = true }) {
     const first = normalized[0]?.data.trace ?? [];
     const second = normalized[1]?.data.trace ?? [];
     const difference = computeDifferenceTrace(first, second);
-    return /* @__PURE__ */ jsx("section", { className: TraceComparison_default.root, children: /* @__PURE__ */ jsx(TraceChart, { trace: difference, events: [] }) });
+    return /* @__PURE__ */ jsx("section", { className: TraceComparison_default.root, children: /* @__PURE__ */ jsxs("article", { className: TraceComparison_default.panel, children: [
+      /* @__PURE__ */ jsx("h3", { className: TraceComparison_default.title, children: "Difference (Trace 1 - Trace 2)" }),
+      /* @__PURE__ */ jsx(TraceChart, { trace: difference, events: [] })
+    ] }) });
   }
   const primary = normalized[0];
   const overlays = normalized.slice(1).map((item) => ({ trace: item.data.trace, label: item.label, color: item.color }));
@@ -173,7 +176,10 @@ function TraceComparison({ traces, mode = "overlay", syncZoom = true }) {
       /* @__PURE__ */ jsx("span", { className: TraceComparison_default.swatch, style: { background: item.color } }),
       item.label
     ] }, `legend-${item.label}`)) }),
-    primary ? /* @__PURE__ */ jsx(TraceChart, { trace: primary.data.trace, events: primary.data.keyEvents.events, overlays }) : null
+    primary ? /* @__PURE__ */ jsxs("article", { className: TraceComparison_default.panel, children: [
+      /* @__PURE__ */ jsx("h3", { className: TraceComparison_default.title, children: "Overlay" }),
+      /* @__PURE__ */ jsx(TraceChart, { trace: primary.data.trace, events: primary.data.keyEvents.events, overlays })
+    ] }) : null
   ] });
 }
 

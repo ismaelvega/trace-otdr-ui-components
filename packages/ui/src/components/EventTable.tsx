@@ -117,15 +117,39 @@ export function EventTable({
       <table className={styles.table}>
         <thead className={styles.head}>
           <tr>
-            <th scope="col" aria-sort={ariaSortValue(sortState, "index")} onClick={() => setSortState((current) => cycleSortState(current, "index"))}>#</th>
-            <th scope="col" aria-sort={ariaSortValue(sortState, "distance")} onClick={() => setSortState((current) => cycleSortState(current, "distance"))}>Distance</th>
-            <th scope="col" aria-sort={ariaSortValue(sortState, "type")} onClick={() => setSortState((current) => cycleSortState(current, "type"))}>Type</th>
-            <th scope="col" aria-sort={ariaSortValue(sortState, "spliceLoss")} onClick={() => setSortState((current) => cycleSortState(current, "spliceLoss"))}>Splice Loss</th>
-            <th scope="col" aria-sort={ariaSortValue(sortState, "reflLoss")} onClick={() => setSortState((current) => cycleSortState(current, "reflLoss"))}>Refl. Loss</th>
+            <th scope="col" className={`${styles.numeric} ${styles.indexCol}`} aria-sort={ariaSortValue(sortState, "index")}>
+              <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "index"))}>
+                #
+              </button>
+            </th>
+            <th scope="col" className={`${styles.numeric} ${styles.distanceCol}`} aria-sort={ariaSortValue(sortState, "distance")}>
+              <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "distance"))}>
+                Distance
+              </button>
+            </th>
+            <th scope="col" aria-sort={ariaSortValue(sortState, "type")}>
+              <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "type"))}>
+                Type
+              </button>
+            </th>
+            <th scope="col" className={styles.numeric} aria-sort={ariaSortValue(sortState, "spliceLoss")}>
+              <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "spliceLoss"))}>
+                Splice Loss
+              </button>
+            </th>
+            <th scope="col" className={styles.numeric} aria-sort={ariaSortValue(sortState, "reflLoss")}>
+              <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "reflLoss"))}>
+                Refl. Loss
+              </button>
+            </th>
             {!compact ? (
               <>
-                <th scope="col" aria-sort={ariaSortValue(sortState, "slope")} onClick={() => setSortState((current) => cycleSortState(current, "slope"))}>Slope</th>
-                <th scope="col">Status</th>
+                <th scope="col" className={styles.numeric} aria-sort={ariaSortValue(sortState, "slope")}>
+                  <button type="button" className={styles.sortButton} onClick={() => setSortState((current) => cycleSortState(current, "slope"))}>
+                    Slope
+                  </button>
+                </th>
+                <th scope="col" className={styles.statusCol}>Status</th>
               </>
             ) : null}
           </tr>
@@ -137,7 +161,7 @@ export function EventTable({
               ref={(node) => {
                 rowRefs.current[row.index] = node;
               }}
-              className={selectedEvent === row.index ? styles.selected : undefined}
+              className={`${styles.row} ${selectedEvent === row.index ? styles.selected : ""}`}
               onClick={() => onEventSelect?.(row.event, row.index)}
               tabIndex={0}
               onKeyDown={(event) => {
@@ -165,20 +189,20 @@ export function EventTable({
                 }
               }}
             >
-              <td>{row.index + 1}</td>
-              <td>{formatDistance(row.distance, xUnit)}</td>
+              <td className={`${styles.numeric} ${styles.indexCol}`}>{row.index + 1}</td>
+              <td className={`${styles.numeric} ${styles.distanceCol}`}>{formatDistance(row.distance, xUnit)}</td>
               <td>
                 <span className={styles.typeCell}>
                   <span className={styles.icon} />
                   {renderType(row.type)}
                 </span>
               </td>
-              <td>{row.spliceLoss.toFixed(3)} dB</td>
-              <td>{row.reflLoss.toFixed(3)} dB</td>
+              <td className={styles.numeric}>{row.spliceLoss.toFixed(3)} dB</td>
+              <td className={styles.numeric}>{row.reflLoss.toFixed(3)} dB</td>
               {!compact ? (
                 <>
-                  <td>{row.slope.toFixed(3)} dB/km</td>
-                  <td>
+                  <td className={styles.numeric}>{row.slope.toFixed(3)} dB/km</td>
+                  <td className={styles.statusCol}>
                     <StatusBadge status={row.status as AssessmentStatus} />
                   </td>
                 </>
@@ -189,8 +213,8 @@ export function EventTable({
         <tfoot className={styles.footer}>
           <tr>
             <td colSpan={compact ? 3 : 5}>Summary</td>
-            <td colSpan={compact ? 2 : 1}>Total Loss: {summary.totalLoss.toFixed(3)} dB</td>
-            {!compact ? <td>ORL: {summary.orl.toFixed(3)} dB</td> : null}
+            <td className={styles.numeric} colSpan={compact ? 2 : 1}>Total Loss: {summary.totalLoss.toFixed(3)} dB</td>
+            {!compact ? <td className={styles.numeric}>ORL: {summary.orl.toFixed(3)} dB</td> : null}
           </tr>
         </tfoot>
       </table>

@@ -1,12 +1,14 @@
 .root {
   display: grid;
-  gap: 12px;
+  gap: var(--otdr-section-gap, 14px);
   font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
   color: var(--otdr-text-strong, #0f172a);
+  line-height: var(--otdr-line-height-normal, 1.45);
+  min-width: 0;
 }
 
 .full {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   grid-template-areas:
     "summary summary"
     "chart chart"
@@ -17,7 +19,7 @@
 }
 
 .compact {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     "summary"
     "chart"
@@ -30,7 +32,11 @@
 }
 
 .summary { grid-area: summary; }
-.chart { grid-area: chart; }
+.chart {
+  grid-area: chart;
+  display: grid;
+  gap: var(--otdr-space-2, 8px);
+}
 .fibermap { grid-area: fibermap; }
 .table { grid-area: table; }
 .losschart { grid-area: losschart; }
@@ -38,9 +44,20 @@
 .equip { grid-area: equip; }
 .measure { grid-area: measure; }
 
-@media (max-width: 1200px) {
+.summary,
+.chart,
+.fibermap,
+.table,
+.losschart,
+.fiber,
+.equip,
+.measure {
+  min-width: 0;
+}
+
+@media (max-width: 1280px) {
   .full {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "summary"
       "chart"
@@ -50,5 +67,30 @@
       "fiber"
       "equip"
       "measure";
+  }
+}
+
+@media (max-width: 768px) {
+  .root {
+    gap: var(--otdr-space-3, 12px);
+  }
+}
+
+@media (max-width: 480px) {
+  .full {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "summary"
+      "chart"
+      "fibermap"
+      "table"
+      "losschart"
+      "fiber"
+      "equip"
+      "measure";
+  }
+
+  .root {
+    gap: var(--otdr-space-2, 8px);
   }
 }

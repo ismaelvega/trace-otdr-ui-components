@@ -1,45 +1,49 @@
 .root {
-  background: #ffffff;
-  color: #111827;
-  padding: 16px;
-  border: 1px solid #d1d5db;
+  background: var(--otdr-panel, #ffffff);
+  color: var(--otdr-text, #1f2937);
+  padding: var(--otdr-panel-padding-lg, 16px);
+  border: 1px solid var(--otdr-border, #cbd5e1);
+  border-radius: var(--otdr-radius-lg, 14px);
   font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+  box-shadow: var(--otdr-shadow-1, 0 1px 2px rgba(15, 42, 67, 0.08));
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid #111827;
-  padding-bottom: 8px;
-  margin-bottom: 12px;
+  border-bottom: 2px solid var(--otdr-border-strong, #95aec8);
+  padding-bottom: var(--otdr-space-2, 8px);
+  margin-bottom: var(--otdr-space-3, 12px);
 }
 
 .section {
-  margin-bottom: 12px;
+  margin-bottom: var(--otdr-space-3, 12px);
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--otdr-font-size-xs, 12px);
 }
 
 .table th,
 .table td {
-  border: 1px solid #d1d5db;
-  padding: 6px 8px;
+  border: 1px solid var(--otdr-border-subtle, #d8e4f1);
+  padding: var(--otdr-space-2, 8px);
   text-align: left;
 }
 
 .trace {
   width: 100%;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--otdr-border-subtle, #d8e4f1);
+  border-radius: var(--otdr-radius-sm, 6px);
 }
 
 .footer {
-  border-top: 1px solid #d1d5db;
-  padding-top: 8px;
+  border-top: 1px solid var(--otdr-border-subtle, #d8e4f1);
+  padding-top: var(--otdr-space-2, 8px);
+  color: var(--otdr-text-muted, #475569);
 }
 
 @media print {

@@ -1,23 +1,15 @@
-import { readFileSync } from "node:fs";
-
 import { describe, expect, it } from "vitest";
 
-import { parseSor, type SorData } from "sor-reader";
+import type { SorData } from "sor-reader";
 import { normalizeSorResult } from "../src/adapters/normalize.js";
-
-function loadFixture(name: string) {
-  const bytes = new Uint8Array(
-    readFileSync(new URL(`../../../sor-reader/tests/fixtures/${name}`, import.meta.url)),
-  );
-  return parseSor(bytes, name);
-}
+import { createMockSorResultRawV1, createMockSorResultRawV2 } from "./mock-sor-data.js";
 
 describe("normalizeSorResult", () => {
   it("normalizes v1 fixture output into SorData", () => {
-    const raw = loadFixture("demo_ab.sor");
+    const raw = createMockSorResultRawV1();
     const normalized = normalizeSorResult(raw);
 
-    expect(normalized.filename).toBe("demo_ab.sor");
+    expect(normalized.filename).toBe(raw.filename);
     expect(normalized.mapBlock.nblocks).toBe(raw.mapblock.nblocks);
     expect(normalized.genParams.cableId).toBe(raw.GenParams["cable ID"]);
     expect(normalized.supParams.otdr).toBe(raw.SupParams.OTDR);
@@ -28,7 +20,7 @@ describe("normalizeSorResult", () => {
   });
 
   it("normalizes v2 fixture output and carries v2-only fields", () => {
-    const raw = loadFixture("sample1310_lowDR.sor");
+    const raw = createMockSorResultRawV2();
     const normalized = normalizeSorResult(raw);
 
     expect(normalized.fxdParams).toMatchObject({
@@ -43,7 +35,7 @@ describe("normalizeSorResult", () => {
   });
 
   it("is idempotent for already-normalized data", () => {
-    const normalized = normalizeSorResult(loadFixture("demo_ab.sor"));
+    const normalized = normalizeSorResult(createMockSorResultRawV1());
     const secondPass = normalizeSorResult(normalized as SorData);
 
     expect(secondPass).toBe(normalized);

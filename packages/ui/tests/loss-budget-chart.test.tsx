@@ -1,23 +1,14 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { parseSor } from "sor-reader";
 
-import { normalizeSorResult } from "../src/adapters/normalize.js";
 import { LossBudgetChart } from "../src/components/LossBudgetChart.js";
-
-function loadFixture(name: string) {
-  const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name)));
-  return normalizeSorResult(parseSor(bytes, name));
-}
+import { createMockSorData } from "./mock-sor-data.js";
 
 describe("LossBudgetChart", () => {
   it("renders bars and emits click callback", () => {
-    const data = loadFixture("demo_ab.sor");
+    const data = createMockSorData();
     const onBarClick = vi.fn();
 
     render(<LossBudgetChart events={data.keyEvents.events} onBarClick={onBarClick} />);
@@ -34,7 +25,7 @@ describe("LossBudgetChart", () => {
   });
 
   it("supports vertical mode bar sizing", () => {
-    const data = loadFixture("demo_ab.sor");
+    const data = createMockSorData();
     const { container } = render(<LossBudgetChart events={data.keyEvents.events} vertical />);
     const bar = container.querySelector('[class*="bar"]');
     expect(bar?.getAttribute("style")).toContain("height:");

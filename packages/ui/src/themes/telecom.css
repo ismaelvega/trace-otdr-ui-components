@@ -3,11 +3,36 @@
 [data-theme="telecom"] {
   --otdr-bg: #e6edf4;
   --otdr-surface: #edf3f9;
+  --otdr-surface-elevated: #f4f8fc;
   --otdr-panel: #f8fbff;
+  --otdr-panel-strong: #eaf2fb;
+  --otdr-panel-subtle: #f7fbff;
+  --otdr-section-header-bg: #dde8f4;
+  --otdr-section-header-border: #b6cbe0;
+  --otdr-section-header-fg: #102a43;
+  --otdr-section-header-muted: #486581;
   --otdr-border: #a8bfd8;
+  --otdr-border-strong: #88a7c5;
   --otdr-border-subtle: #c7d7e8;
+  --otdr-divider: #bbcee1;
+  --otdr-shadow-1: 0 1px 2px rgba(16, 42, 67, 0.08);
+  --otdr-shadow-2: 0 8px 20px rgba(16, 42, 67, 0.13);
   --otdr-text-strong: #102a43;
+  --otdr-text: #1f3b57;
   --otdr-text-muted: #334e68;
+  --otdr-text-subtle: #627d98;
+  --otdr-text-emphasis: #0b304f;
+  --otdr-numeric-color: #102a43;
+  --otdr-numeric-muted: #486581;
+
+  --otdr-interactive-highlight: #0070a8;
+  --otdr-interactive-highlight-soft: #d9ecf7;
+  --otdr-interactive-bg-hover: #deebf7;
+  --otdr-interactive-bg-active: #d0e2f3;
+  --otdr-interactive-selected-bg: #cfe5fa;
+  --otdr-interactive-selected-border: #186faf;
+  --otdr-interactive-focus-ring: #0f6aa8;
+  --otdr-interactive-focus-shadow: 0 0 0 3px rgba(15, 106, 168, 0.3);
 
   --otdr-status-pass-bg: #d9f0df;
   --otdr-status-pass-border: #2f855a;
@@ -18,11 +43,39 @@
   --otdr-status-fail-bg: #f9d6d5;
   --otdr-status-fail-border: #c53030;
   --otdr-status-fail-fg: #7f1d1d;
+  --otdr-status-neutral-bg: #d9e5f2;
+  --otdr-status-neutral-border: #7a96b4;
+  --otdr-status-neutral-fg: #1f3b57;
 
   --otdr-chart-bg: #f8fbff;
   --otdr-trace-primary: #0070a8;
   --otdr-axis-color: #3a506b;
   --otdr-axis-label: #102a43;
   --otdr-grid-color: #c7d7e8;
+  --otdr-grid-color-subtle: #dce7f2;
   --otdr-crosshair-color: #486581;
+  --otdr-crosshair-label-bg: rgba(248, 252, 255, 0.96);
+  --otdr-crosshair-label-fg: #102a43;
+  --otdr-tooltip-bg: rgba(12, 36, 56, 0.95);
+  --otdr-tooltip-fg: #eff8ff;
+  --otdr-tooltip-border: #4a6a88;
+  --otdr-marker-reflection: #c53030;
+  --otdr-marker-loss: #007a6a;
+  --otdr-marker-connector: #1d70b8;
+  --otdr-marker-end: #102a43;
+  --otdr-marker-manual: #b76e00;
+  --otdr-marker-unknown: #627d98;
+  --otdr-marker-stem: rgba(54, 83, 120, 0.34);
+  --otdr-marker-stem-selected: rgba(29, 112, 184, 0.72);
+  --otdr-marker-label: #334e68;
+  --otdr-marker-label-muted: #627d98;
+  --otdr-marker-selected-ring: #1d70b8;
+  --otdr-marker-selected-halo: rgba(29, 112, 184, 0.28);
+  --otdr-marker-hover-ring: #0891b2;
+  --otdr-marker-hover-halo: rgba(8, 145, 178, 0.24);
+
+  --otdr-row-alt: #f1f7fd;
+  --otdr-row-hover: #deebf7;
+  --otdr-row-selected: #cfe5fa;
+  --otdr-row-selected-border: #186faf;
 }

@@ -1,0 +1,29 @@
+.button {
+  appearance: none;
+  border: 1px solid var(--otdr-border-strong, #95aec8);
+  background: var(--otdr-panel, #ffffff);
+  color: var(--otdr-text-emphasis, #0f2942);
+  border-radius: var(--otdr-radius-sm, 6px);
+  padding: 6px 12px;
+  font: inherit;
+  font-size: var(--otdr-font-size-xs, 12px);
+  font-weight: var(--otdr-weight-semibold, 600);
+  cursor: pointer;
+  transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
+}
+
+.button:hover {
+  background: var(--otdr-interactive-bg-hover, #e9f3ff);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--otdr-interactive-focus-ring, #2563eb);
+  outline-offset: 1px;
+  box-shadow: var(--otdr-interactive-focus-shadow, 0 0 0 3px rgba(37, 99, 235, 0.28));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

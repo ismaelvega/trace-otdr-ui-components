@@ -1,22 +1,14 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { parseSor } from "sor-reader";
 
 import { TraceSummary } from "../src/components/TraceSummary.js";
-
-function loadFixture(name: string) {
-  const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name)));
-  return parseSor(bytes, name);
-}
+import { createMockSorData } from "./mock-sor-data.js";
 
 describe("TraceSummary", () => {
   it("renders key summary metrics", () => {
-    const result = loadFixture("demo_ab.sor");
+    const result = createMockSorData();
 
     render(<TraceSummary result={result} />);
 

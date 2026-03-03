@@ -71,6 +71,19 @@ function parseDistance(value: string): number {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function estimateTooltipSize(text: string): { width: number; height: number } {
+  const lines = text.split("\n");
+  const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  const width = clamp(24 + longest * 7, 160, 320);
+  const height = 12 + lines.length * 18;
+  return { width, height };
+}
+
 export function TraceChart({
   trace,
   events = [],
@@ -123,6 +136,7 @@ export function TraceChart({
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [liveLabel, setLiveLabel] = useState("");
   const keyboardMarkerIndexRef = useRef<number>(-1);
+  const hoveredMarkerIndexRef = useRef<number | null>(null);
 
   const setViewport = (next: ViewportRange, notify = true): void => {
     viewportRef.current = next;
@@ -136,6 +150,7 @@ export function TraceChart({
   useEffect(() => {
     boundsRef.current = computeViewport(trace, 0);
     crosshairRef.current = null;
+    hoveredMarkerIndexRef.current = null;
     setTooltip(null);
     if (!controlledViewport) {
       setViewport(computeViewport(trace), false);
@@ -180,6 +195,32 @@ export function TraceChart({
     const gridColor = readCssVariable(computed, "--otdr-grid-color", "#cbd5e1");
     const crosshairColor = readCssVariable(computed, "--otdr-crosshair-color", "#64748b");
     const panelColor = readCssVariable(computed, "--otdr-panel", "#ffffff");
+    const crosshairTextColor = readCssVariable(computed, "--otdr-crosshair-label-fg", "#0f172a");
+    const crosshairLabelBackground = readCssVariable(computed, "--otdr-crosshair-label-bg", panelColor);
+    const tooltipBackground = readCssVariable(computed, "--otdr-tooltip-bg", "rgba(7, 26, 45, 0.96)");
+    const tooltipForeground = readCssVariable(computed, "--otdr-tooltip-fg", "#eff6ff");
+    const tooltipBorder = readCssVariable(computed, "--otdr-tooltip-border", "#1f3b5b");
+    const markerStemColor = readCssVariable(computed, "--otdr-marker-stem", "rgba(49, 82, 116, 0.36)");
+    const markerSelectedStemColor = readCssVariable(computed, "--otdr-marker-stem-selected", "rgba(37, 99, 235, 0.66)");
+    const markerLabelColor = readCssVariable(computed, "--otdr-marker-label", "#334e68");
+    const markerLabelMuted = readCssVariable(computed, "--otdr-marker-label-muted", "#6f859e");
+    const markerSelectedRing = readCssVariable(computed, "--otdr-marker-selected-ring", "#2563eb");
+    const markerSelectedHalo = readCssVariable(computed, "--otdr-marker-selected-halo", "rgba(37, 99, 235, 0.28)");
+    const markerHoverRing = readCssVariable(computed, "--otdr-marker-hover-ring", "#0891b2");
+    const markerHoverHalo = readCssVariable(computed, "--otdr-marker-hover-halo", "rgba(8, 145, 178, 0.24)");
+    const markerReflection = readCssVariable(computed, "--otdr-marker-reflection", "#c3342f");
+    const markerLoss = readCssVariable(computed, "--otdr-marker-loss", "#0f766e");
+    const markerConnector = readCssVariable(computed, "--otdr-marker-connector", "#2563eb");
+    const markerEnd = readCssVariable(computed, "--otdr-marker-end", "#111827");
+    const markerManual = readCssVariable(computed, "--otdr-marker-manual", "#a16207");
+    const markerUnknown = readCssVariable(computed, "--otdr-marker-unknown", "#64748b");
+
+    if (containerRef.current) {
+      containerRef.current.style.setProperty("--otdr-tooltip-bg-runtime", tooltipBackground);
+      containerRef.current.style.setProperty("--otdr-tooltip-fg-runtime", tooltipForeground);
+      containerRef.current.style.setProperty("--otdr-tooltip-border-runtime", tooltipBorder);
+    }
+
     const composedOverlays: TraceOverlay[] = [
       { trace: traceRef.current, label: "Primary", color: traceColor },
       ...overlaysRef.current,
@@ -196,7 +237,24 @@ export function TraceChart({
       unit: xUnitRef.current,
       clearColor: chartBackground,
       drawEventMarkers: () => {
-        renderEventMarkers(handle.ctx, markers, canvasRect, selectedEventRef.current);
+        renderEventMarkers(handle.ctx, markers, canvasRect, selectedEventRef.current, hoveredMarkerIndexRef.current, {
+          colors: {
+            reflection: markerReflection,
+            loss: markerLoss,
+            connector: markerConnector,
+            "end-of-fiber": markerEnd,
+            manual: markerManual,
+            unknown: markerUnknown,
+          },
+          stemColor: markerStemColor,
+          selectedStemColor: markerSelectedStemColor,
+          labelColor: markerLabelColor,
+          mutedLabelColor: markerLabelMuted,
+          selectedRingColor: markerSelectedRing,
+          selectedHaloColor: markerSelectedHalo,
+          hoverRingColor: markerHoverRing,
+          hoverHaloColor: markerHoverHalo,
+        });
       },
       crosshair: crosshairRef.current,
       axisStyle: {
@@ -206,7 +264,9 @@ export function TraceChart({
       },
       crosshairStyle: {
         lineColor: crosshairColor,
-        labelBackground: panelColor,
+        labelBackground: crosshairLabelBackground,
+        textColor: crosshairTextColor,
+        labelBorder: tooltipBorder,
       },
     });
   };
@@ -310,14 +370,20 @@ export function TraceChart({
 
       const hit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
       if (hit === null) {
+        hoveredMarkerIndexRef.current = null;
         setTooltip(null);
       } else {
+        hoveredMarkerIndexRef.current = hit;
         const marker = markersRef.current.find((candidate: EventMarker) => candidate.index === hit);
         if (marker) {
+          const text = formatEventTooltip(marker, xUnitRef.current);
+          const { width: tooltipWidth, height: tooltipHeight } = estimateTooltipSize(text);
+          const viewportWidth = handle.canvas.clientWidth || canvasRect.width;
+          const viewportHeight = handle.canvas.clientHeight || canvasRect.height;
           setTooltip({
-            left: event.offsetX + 12,
-            top: event.offsetY + 12,
-            text: formatEventTooltip(marker, xUnitRef.current),
+            left: clamp(event.offsetX + 12, 8, viewportWidth - tooltipWidth - 8),
+            top: clamp(event.offsetY + 12, 8, viewportHeight - tooltipHeight - 8),
+            text,
           });
         }
       }
@@ -340,6 +406,7 @@ export function TraceChart({
     const onPointerLeave = (): void => {
       if (!dragRef.current.active) {
         crosshairRef.current = null;
+        hoveredMarkerIndexRef.current = null;
         setTooltip(null);
         scheduler.scheduleRender();
       }
@@ -456,6 +523,7 @@ export function TraceChart({
             xUnitRef.current,
           );
           crosshairRef.current = state;
+          hoveredMarkerIndexRef.current = marker.index;
           setLiveLabel(state?.label ?? `Event ${marker.index + 1}`);
           onEventClickRef.current?.(marker.event, marker.index);
           schedulerRef.current?.scheduleRender();

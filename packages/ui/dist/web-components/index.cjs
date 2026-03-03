@@ -286,6 +286,7 @@ function drawCrosshair(ctx, state, canvasRect, style = {}) {
   const lineColor = style.lineColor ?? "#64748b";
   const textColor = style.textColor ?? "#0f172a";
   const labelBackground = style.labelBackground ?? "rgba(248, 250, 252, 0.92)";
+  const labelBorder = style.labelBorder ?? "rgba(15, 23, 42, 0.15)";
   ctx.save();
   ctx.strokeStyle = lineColor;
   ctx.setLineDash([6, 4]);
@@ -307,7 +308,7 @@ function drawCrosshair(ctx, state, canvasRect, style = {}) {
   const y = Math.min(Math.max(plotRect.top, desiredY), plotRect.bottom - labelHeight);
   ctx.fillStyle = labelBackground;
   ctx.fillRect(x, y, labelWidth + paddingX * 2, labelHeight);
-  ctx.strokeStyle = "rgba(15, 23, 42, 0.15)";
+  ctx.strokeStyle = labelBorder;
   ctx.strokeRect(x, y, labelWidth + paddingX * 2, labelHeight);
   ctx.fillStyle = textColor;
   ctx.fillText(state.label, x + paddingX, y + labelHeight - paddingY);
@@ -388,13 +389,23 @@ function assessSummary(summary, thresholds) {
 }
 
 // src/canvas/event-markers.ts
-var MARKER_COLORS = {
-  reflection: "#b91c1c",
-  loss: "#0f766e",
-  connector: "#1d4ed8",
-  "end-of-fiber": "#111827",
-  manual: "#a16207",
-  unknown: "#6b7280"
+var DEFAULT_MARKER_STYLE = {
+  colors: {
+    reflection: "#c3342f",
+    loss: "#0f766e",
+    connector: "#2563eb",
+    "end-of-fiber": "#111827",
+    manual: "#a16207",
+    unknown: "#64748b"
+  },
+  stemColor: "rgba(49, 82, 116, 0.36)",
+  selectedStemColor: "rgba(37, 99, 235, 0.66)",
+  labelColor: "#334e68",
+  mutedLabelColor: "#6f859e",
+  selectedRingColor: "#2563eb",
+  selectedHaloColor: "rgba(37, 99, 235, 0.28)",
+  hoverRingColor: "#0891b2",
+  hoverHaloColor: "rgba(8, 145, 178, 0.24)"
 };
 function parseDistance(distance) {
   const value = Number.parseFloat(distance);
@@ -451,27 +462,52 @@ function computeEventMarkers(events, trace, viewport, canvasRect) {
   }
   return markers;
 }
-function drawEventMarkers(ctx, markers, canvasRect, selectedIndex = null) {
+function drawEventMarkers(ctx, markers, canvasRect, selectedIndex = null, hoveredIndex = null, style = {}) {
   if (markers.length === 0) return;
   const plotRect = getPlotRect(canvasRect);
+  const mergedStyle = {
+    ...DEFAULT_MARKER_STYLE,
+    ...style,
+    colors: {
+      ...DEFAULT_MARKER_STYLE.colors,
+      ...style.colors ?? {}
+    }
+  };
+  const dense = markers.length > 20;
   for (const marker of markers) {
     const isSelected = selectedIndex === marker.index;
-    const color = MARKER_COLORS[marker.category] ?? MARKER_COLORS.unknown;
-    const radius = 8;
+    const isHovered = hoveredIndex === marker.index;
+    const isPriority = isSelected || isHovered;
+    const color = mergedStyle.colors[marker.category] ?? mergedStyle.colors.unknown;
+    const radius = isSelected ? 8 : isHovered ? 7.5 : 7;
     ctx.save();
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
-    ctx.lineWidth = isSelected ? 3 : 2;
-    if (isSelected) {
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = color;
-    }
-    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = isPriority ? 2.4 : 1.6;
+    ctx.globalAlpha = isPriority ? 1 : 0.86;
+    ctx.setLineDash(isPriority ? [4, 3] : [2, 4]);
     ctx.beginPath();
     ctx.moveTo(Math.round(marker.px) + 0.5, marker.py);
     ctx.lineTo(Math.round(marker.px) + 0.5, plotRect.bottom);
+    ctx.strokeStyle = isPriority ? mergedStyle.selectedStemColor : mergedStyle.stemColor;
+    ctx.lineWidth = isPriority ? 1.4 : 1;
     ctx.stroke();
     ctx.setLineDash([]);
+    if (isSelected || isHovered) {
+      const haloColor = isSelected ? mergedStyle.selectedHaloColor : mergedStyle.hoverHaloColor;
+      const ringColor = isSelected ? mergedStyle.selectedRingColor : mergedStyle.hoverRingColor;
+      ctx.beginPath();
+      ctx.fillStyle = haloColor;
+      ctx.arc(marker.px, marker.py, radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = 1.2;
+      ctx.arc(marker.px, marker.py, radius + 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+    }
     drawMarkerShape(ctx, marker.category, marker.px, marker.py, radius);
     if (marker.category === "end-of-fiber") {
       ctx.stroke();
@@ -479,11 +515,14 @@ function drawEventMarkers(ctx, markers, canvasRect, selectedIndex = null) {
       ctx.fill();
       ctx.stroke();
     }
-    const label = `${marker.index + 1}`;
-    ctx.font = "11px sans-serif";
-    const labelWidth = ctx.measureText(label).width;
-    ctx.fillStyle = "#111827";
-    ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
+    const shouldShowLabel = !dense || isPriority || marker.index % 2 === 0;
+    if (shouldShowLabel) {
+      const label = `${marker.index + 1}`;
+      ctx.font = isPriority ? "600 11px sans-serif" : "10px sans-serif";
+      const labelWidth = ctx.measureText(label).width;
+      ctx.fillStyle = isPriority ? mergedStyle.labelColor : mergedStyle.mutedLabelColor;
+      ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
+    }
     ctx.restore();
   }
 }
@@ -908,6 +947,17 @@ function parseDistance2(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
+function clamp(value, min, max) {
+  if (max < min) return min;
+  return Math.min(Math.max(value, min), max);
+}
+function estimateTooltipSize(text) {
+  const lines = text.split("\n");
+  const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  const width = clamp(24 + longest * 7, 160, 320);
+  const height = 12 + lines.length * 18;
+  return { width, height };
+}
 function TraceChart({
   trace,
   events = [],
@@ -957,6 +1007,7 @@ function TraceChart({
   const [tooltip, setTooltip] = (0, import_react.useState)(null);
   const [liveLabel, setLiveLabel] = (0, import_react.useState)("");
   const keyboardMarkerIndexRef = (0, import_react.useRef)(-1);
+  const hoveredMarkerIndexRef = (0, import_react.useRef)(null);
   const setViewport = (next, notify = true) => {
     viewportRef.current = next;
     setViewportState(next);
@@ -968,6 +1019,7 @@ function TraceChart({
   (0, import_react.useEffect)(() => {
     boundsRef.current = computeViewport(trace, 0);
     crosshairRef.current = null;
+    hoveredMarkerIndexRef.current = null;
     setTooltip(null);
     if (!controlledViewport) {
       setViewport(computeViewport(trace), false);
@@ -1005,6 +1057,30 @@ function TraceChart({
     const gridColor = readCssVariable(computed, "--otdr-grid-color", "#cbd5e1");
     const crosshairColor = readCssVariable(computed, "--otdr-crosshair-color", "#64748b");
     const panelColor = readCssVariable(computed, "--otdr-panel", "#ffffff");
+    const crosshairTextColor = readCssVariable(computed, "--otdr-crosshair-label-fg", "#0f172a");
+    const crosshairLabelBackground = readCssVariable(computed, "--otdr-crosshair-label-bg", panelColor);
+    const tooltipBackground = readCssVariable(computed, "--otdr-tooltip-bg", "rgba(7, 26, 45, 0.96)");
+    const tooltipForeground = readCssVariable(computed, "--otdr-tooltip-fg", "#eff6ff");
+    const tooltipBorder = readCssVariable(computed, "--otdr-tooltip-border", "#1f3b5b");
+    const markerStemColor = readCssVariable(computed, "--otdr-marker-stem", "rgba(49, 82, 116, 0.36)");
+    const markerSelectedStemColor = readCssVariable(computed, "--otdr-marker-stem-selected", "rgba(37, 99, 235, 0.66)");
+    const markerLabelColor = readCssVariable(computed, "--otdr-marker-label", "#334e68");
+    const markerLabelMuted = readCssVariable(computed, "--otdr-marker-label-muted", "#6f859e");
+    const markerSelectedRing = readCssVariable(computed, "--otdr-marker-selected-ring", "#2563eb");
+    const markerSelectedHalo = readCssVariable(computed, "--otdr-marker-selected-halo", "rgba(37, 99, 235, 0.28)");
+    const markerHoverRing = readCssVariable(computed, "--otdr-marker-hover-ring", "#0891b2");
+    const markerHoverHalo = readCssVariable(computed, "--otdr-marker-hover-halo", "rgba(8, 145, 178, 0.24)");
+    const markerReflection = readCssVariable(computed, "--otdr-marker-reflection", "#c3342f");
+    const markerLoss = readCssVariable(computed, "--otdr-marker-loss", "#0f766e");
+    const markerConnector = readCssVariable(computed, "--otdr-marker-connector", "#2563eb");
+    const markerEnd = readCssVariable(computed, "--otdr-marker-end", "#111827");
+    const markerManual = readCssVariable(computed, "--otdr-marker-manual", "#a16207");
+    const markerUnknown = readCssVariable(computed, "--otdr-marker-unknown", "#64748b");
+    if (containerRef.current) {
+      containerRef.current.style.setProperty("--otdr-tooltip-bg-runtime", tooltipBackground);
+      containerRef.current.style.setProperty("--otdr-tooltip-fg-runtime", tooltipForeground);
+      containerRef.current.style.setProperty("--otdr-tooltip-border-runtime", tooltipBorder);
+    }
     const composedOverlays = [
       { trace: traceRef.current, label: "Primary", color: traceColor },
       ...overlaysRef.current
@@ -1019,7 +1095,24 @@ function TraceChart({
       unit: xUnitRef.current,
       clearColor: chartBackground,
       drawEventMarkers: () => {
-        drawEventMarkers(handle.ctx, markers, canvasRect, selectedEventRef.current);
+        drawEventMarkers(handle.ctx, markers, canvasRect, selectedEventRef.current, hoveredMarkerIndexRef.current, {
+          colors: {
+            reflection: markerReflection,
+            loss: markerLoss,
+            connector: markerConnector,
+            "end-of-fiber": markerEnd,
+            manual: markerManual,
+            unknown: markerUnknown
+          },
+          stemColor: markerStemColor,
+          selectedStemColor: markerSelectedStemColor,
+          labelColor: markerLabelColor,
+          mutedLabelColor: markerLabelMuted,
+          selectedRingColor: markerSelectedRing,
+          selectedHaloColor: markerSelectedHalo,
+          hoverRingColor: markerHoverRing,
+          hoverHaloColor: markerHoverHalo
+        });
       },
       crosshair: crosshairRef.current,
       axisStyle: {
@@ -1029,7 +1122,9 @@ function TraceChart({
       },
       crosshairStyle: {
         lineColor: crosshairColor,
-        labelBackground: panelColor
+        labelBackground: crosshairLabelBackground,
+        textColor: crosshairTextColor,
+        labelBorder: tooltipBorder
       }
     });
   };
@@ -1122,14 +1217,20 @@ function TraceChart({
       }
       const hit = hitTestEventMarkers(markersRef.current, event.offsetX, event.offsetY);
       if (hit === null) {
+        hoveredMarkerIndexRef.current = null;
         setTooltip(null);
       } else {
+        hoveredMarkerIndexRef.current = hit;
         const marker = markersRef.current.find((candidate) => candidate.index === hit);
         if (marker) {
+          const text = formatEventTooltip(marker, xUnitRef.current);
+          const { width: tooltipWidth, height: tooltipHeight } = estimateTooltipSize(text);
+          const viewportWidth = handle.canvas.clientWidth || canvasRect.width;
+          const viewportHeight = handle.canvas.clientHeight || canvasRect.height;
           setTooltip({
-            left: event.offsetX + 12,
-            top: event.offsetY + 12,
-            text: formatEventTooltip(marker, xUnitRef.current)
+            left: clamp(event.offsetX + 12, 8, viewportWidth - tooltipWidth - 8),
+            top: clamp(event.offsetY + 12, 8, viewportHeight - tooltipHeight - 8),
+            text
           });
         }
       }
@@ -1149,6 +1250,7 @@ function TraceChart({
     const onPointerLeave = () => {
       if (!dragRef.current.active) {
         crosshairRef.current = null;
+        hoveredMarkerIndexRef.current = null;
         setTooltip(null);
         scheduler.scheduleRender();
       }
@@ -1255,6 +1357,7 @@ function TraceChart({
             xUnitRef.current
           );
           crosshairRef.current = state;
+          hoveredMarkerIndexRef.current = marker.index;
           setLiveLabel(state?.label ?? `Event ${marker.index + 1}`);
           onEventClickRef.current?.(marker.event, marker.index);
           schedulerRef.current?.scheduleRender();
@@ -1555,14 +1658,14 @@ function EventTable({
   const summary = normalized.keyEvents.summary;
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: EventTable_default.wrapper, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("table", { className: EventTable_default.table, children: [
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("thead", { className: EventTable_default.head, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("tr", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "index"), onClick: () => setSortState((current) => cycleSortState(current, "index")), children: "#" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "distance"), onClick: () => setSortState((current) => cycleSortState(current, "distance")), children: "Distance" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "type"), onClick: () => setSortState((current) => cycleSortState(current, "type")), children: "Type" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "spliceLoss"), onClick: () => setSortState((current) => cycleSortState(current, "spliceLoss")), children: "Splice Loss" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "reflLoss"), onClick: () => setSortState((current) => cycleSortState(current, "reflLoss")), children: "Refl. Loss" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, "aria-sort": ariaSortValue(sortState, "index"), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "index")), children: "#" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, "aria-sort": ariaSortValue(sortState, "distance"), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "distance")), children: "Distance" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "type"), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "type")), children: "Type" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "spliceLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "spliceLoss")), children: "Splice Loss" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "reflLoss"), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "reflLoss")), children: "Refl. Loss" }) }),
       !compact ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", "aria-sort": ariaSortValue(sortState, "slope"), onClick: () => setSortState((current) => cycleSortState(current, "slope")), children: "Slope" }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", children: "Status" })
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", className: EventTable_default.numeric, "aria-sort": ariaSortValue(sortState, "slope"), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: EventTable_default.sortButton, onClick: () => setSortState((current) => cycleSortState(current, "slope")), children: "Slope" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { scope: "col", className: EventTable_default.statusCol, children: "Status" })
       ] }) : null
     ] }) }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tbody", { className: EventTable_default.body, children: rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
@@ -1571,7 +1674,7 @@ function EventTable({
         ref: (node) => {
           rowRefs.current[row.index] = node;
         },
-        className: selectedEvent === row.index ? EventTable_default.selected : void 0,
+        className: `${EventTable_default.row} ${selectedEvent === row.index ? EventTable_default.selected : ""}`,
         onClick: () => onEventSelect?.(row.event, row.index),
         tabIndex: 0,
         onKeyDown: (event) => {
@@ -1596,26 +1699,26 @@ function EventTable({
           }
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { children: row.index + 1 }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { children: formatDistance(row.distance, xUnit) }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { className: `${EventTable_default.numeric} ${EventTable_default.indexCol}`, children: row.index + 1 }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { className: `${EventTable_default.numeric} ${EventTable_default.distanceCol}`, children: formatDistance(row.distance, xUnit) }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: EventTable_default.typeCell, children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: EventTable_default.icon }),
             renderType(row.type)
           ] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { className: EventTable_default.numeric, children: [
             row.spliceLoss.toFixed(3),
             " dB"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { className: EventTable_default.numeric, children: [
             row.reflLoss.toFixed(3),
             " dB"
           ] }),
           !compact ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { className: EventTable_default.numeric, children: [
               row.slope.toFixed(3),
               " dB/km"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(StatusBadge, { status: row.status }) })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { className: EventTable_default.statusCol, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(StatusBadge, { status: row.status }) })
           ] }) : null
         ]
       },
@@ -1623,12 +1726,12 @@ function EventTable({
     )) }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tfoot", { className: EventTable_default.footer, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("tr", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { colSpan: compact ? 3 : 5, children: "Summary" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { colSpan: compact ? 2 : 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { className: EventTable_default.numeric, colSpan: compact ? 2 : 1, children: [
         "Total Loss: ",
         summary.totalLoss.toFixed(3),
         " dB"
       ] }),
-      !compact ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { children: [
+      !compact ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("td", { className: EventTable_default.numeric, children: [
         "ORL: ",
         summary.orl.toFixed(3),
         " dB"
@@ -1649,14 +1752,6 @@ function parseDistance3(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
-function markerColor(type) {
-  if (type === "reflection") return "#b91c1c";
-  if (type === "end-of-fiber") return "#111827";
-  if (type === "connector") return "#1d4ed8";
-  if (type === "manual") return "#a16207";
-  if (type === "loss") return "#0f766e";
-  return "#64748b";
-}
 function FiberMap({
   events,
   locationA = "A",
@@ -1666,6 +1761,8 @@ function FiberMap({
   onEventClick
 }) {
   const markerRefs = (0, import_react3.useRef)([]);
+  const [hoveredIndex, setHoveredIndex] = (0, import_react3.useState)(null);
+  const isVertical = orientation === "vertical";
   const prepared = (0, import_react3.useMemo)(() => {
     const parsed = events.map((event, index) => ({
       event,
@@ -1674,26 +1771,71 @@ function FiberMap({
       type: classifyEvent(event)
     }));
     const maxDistance = Math.max(1, ...parsed.map((item) => item.distance));
-    return parsed.map((item) => ({
-      ...item,
-      ratio: item.distance / maxDistance
-    }));
-  }, [events]);
-  const isVertical = orientation === "vertical";
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("section", { className: FiberMap_default.root, "aria-label": "Fiber map", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("svg", { viewBox: isVertical ? "0 0 180 420" : "0 0 1000 180", className: FiberMap_default.svg, children: [
+    const positioned = parsed.map((item, order) => {
+      const ratio = item.distance / maxDistance;
+      const x = isVertical ? 90 : 30 + ratio * 940;
+      const y = isVertical ? 24 + ratio * 366 : 90;
+      return {
+        ...item,
+        ratio,
+        x,
+        y,
+        labelVisible: false,
+        labelLane: order % 2 === 0 ? 0 : 1,
+        clusterCount: 0
+      };
+    });
+    const clusterCounts = /* @__PURE__ */ new Map();
+    let lastVisiblePos = Number.NEGATIVE_INFINITY;
+    let lastVisibleIndex = null;
+    const baseGap = isVertical ? 24 : 20;
+    const densityBoost = positioned.length > 36 ? 8 : positioned.length > 20 ? 4 : 0;
+    const minGap = baseGap + densityBoost;
+    positioned.forEach((item, order) => {
+      const isPriority = item.index === selectedEvent || item.index === hoveredIndex;
+      const position = isVertical ? item.y : item.x;
+      const enoughSpace = position - lastVisiblePos >= minGap;
+      const labelVisible = isPriority || enoughSpace;
+      item.labelVisible = labelVisible;
+      item.labelLane = order % 2 === 0 ? 0 : 1;
+      if (labelVisible) {
+        lastVisiblePos = position;
+        lastVisibleIndex = item.index;
+      } else if (lastVisibleIndex !== null) {
+        clusterCounts.set(lastVisibleIndex, (clusterCounts.get(lastVisibleIndex) ?? 0) + 1);
+      }
+    });
+    positioned.forEach((item) => {
+      item.clusterCount = clusterCounts.get(item.index) ?? 0;
+    });
+    return positioned;
+  }, [events, hoveredIndex, isVertical, selectedEvent]);
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("section", { className: `${FiberMap_default.root} ${isVertical ? FiberMap_default.vertical : ""}`, "aria-label": "Fiber map", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("svg", { viewBox: isVertical ? "0 0 180 420" : "0 0 1000 180", className: FiberMap_default.svg, children: [
     isVertical ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: "90", y1: "24", x2: "90", y2: "390", stroke: "#334155", strokeWidth: "2" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: "90", y1: "24", x2: "90", y2: "390", className: FiberMap_default.path }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "90", y: "16", textAnchor: "middle", className: FiberMap_default.label, children: locationA }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "90", y: "412", textAnchor: "middle", className: FiberMap_default.label, children: locationB })
     ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: "30", y1: "90", x2: "970", y2: "90", stroke: "#334155", strokeWidth: "2" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: "30", y1: "90", x2: "970", y2: "90", className: FiberMap_default.path }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "30", y: "74", textAnchor: "start", className: FiberMap_default.label, children: locationA }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("text", { x: "970", y: "74", textAnchor: "end", className: FiberMap_default.label, children: locationB })
     ] }),
     prepared.map((item) => {
-      const x = isVertical ? 90 : 30 + item.ratio * 940;
-      const y = isVertical ? 24 + item.ratio * 366 : 90;
+      const x = item.x;
+      const y = item.y;
       const selected = selectedEvent === item.index;
+      const hovered = hoveredIndex === item.index;
+      const labelX = isVertical ? x + (item.labelLane === 0 ? 14 : -14) : x;
+      const labelY = isVertical ? y + 4 : y + (item.labelLane === 0 ? -16 : 22);
+      const labelAnchor = isVertical ? item.labelLane === 0 ? "start" : "end" : "middle";
+      const connectorX = isVertical ? x + (item.labelLane === 0 ? 10 : -10) : x;
+      const connectorY = isVertical ? y : y + (item.labelLane === 0 ? -12 : 12);
+      const markerClass = [
+        FiberMap_default.marker,
+        FiberMap_default[item.type] ?? FiberMap_default.unknown,
+        selected ? FiberMap_default.selected : "",
+        hovered ? FiberMap_default.hovered : ""
+      ].filter(Boolean).join(" ");
       return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
         "g",
         {
@@ -1704,6 +1846,10 @@ function FiberMap({
           onClick: () => onEventClick?.(item.event, item.index),
           "aria-label": `Event ${item.index + 1}`,
           tabIndex: 0,
+          onMouseEnter: () => setHoveredIndex(item.index),
+          onMouseLeave: () => setHoveredIndex((current) => current === item.index ? null : current),
+          onFocus: () => setHoveredIndex(item.index),
+          onBlur: () => setHoveredIndex((current) => current === item.index ? null : current),
           onKeyDown: (event) => {
             if (event.key === "Enter") {
               event.preventDefault();
@@ -1721,20 +1867,38 @@ function FiberMap({
             }
           },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-              "circle",
-              {
-                cx: x,
-                cy: y,
-                r: "8",
-                fill: markerColor(item.type),
-                className: selected ? FiberMap_default.selected : void 0
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("text", { x: isVertical ? x + 14 : x, y: isVertical ? y + 4 : y - 14, textAnchor: isVertical ? "start" : "middle", className: FiberMap_default.label, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("circle", { cx: x, cy: y, r: "7.5", className: markerClass }),
+            item.labelVisible ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: x, y1: y, x2: connectorX, y2: connectorY, className: FiberMap_default.labelConnector }) : null,
+            item.labelVisible ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("text", { x: labelX, y: labelY, textAnchor: labelAnchor, className: `${FiberMap_default.label} ${FiberMap_default.eventLabel}`, children: [
               "#",
               item.index + 1
-            ] })
+            ] }) : null,
+            item.clusterCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("g", { className: FiberMap_default.cluster, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "rect",
+                {
+                  x: isVertical ? labelX + (item.labelLane === 0 ? 4 : -30) : x + 8,
+                  y: isVertical ? labelY - 9 : labelY - (item.labelLane === 0 ? 20 : 6),
+                  width: "22",
+                  height: "12",
+                  rx: "6",
+                  ry: "6"
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                "text",
+                {
+                  x: isVertical ? labelX + (item.labelLane === 0 ? 15 : -19) : x + 19,
+                  y: isVertical ? labelY : labelY - (item.labelLane === 0 ? 10 : -4),
+                  textAnchor: "middle",
+                  className: FiberMap_default.clusterText,
+                  children: [
+                    "+",
+                    item.clusterCount
+                  ]
+                }
+              )
+            ] }) : null
           ]
         },
         `map-event-${item.index}`
@@ -1850,6 +2014,35 @@ function parseNumber3(value) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
+function clampPercent(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+function resolveDisplayMax(losses, thresholdMax) {
+  const maxLoss = Math.max(0, ...losses, thresholdMax);
+  if (maxLoss <= 0) {
+    return { displayMax: 0, dominantScaleActive: false };
+  }
+  if (losses.length <= 1) {
+    return { displayMax: maxLoss, dominantScaleActive: false };
+  }
+  const sorted = losses.slice().sort((a, b) => a - b);
+  const q3Index = Math.max(0, Math.floor(sorted.length * 0.75) - 1);
+  const reference = sorted[q3Index] ?? sorted[sorted.length - 1] ?? maxLoss;
+  if (reference <= 0) {
+    return { displayMax: maxLoss, dominantScaleActive: false };
+  }
+  const ratio = maxLoss / reference;
+  const dominantScaleActive = ratio >= 2.5;
+  if (!dominantScaleActive) {
+    return { displayMax: maxLoss, dominantScaleActive };
+  }
+  const softenedMax = Math.max(reference * 1.75, thresholdMax, 1e-3);
+  return {
+    displayMax: Math.min(maxLoss, softenedMax),
+    dominantScaleActive
+  };
+}
 function LossBudgetChart({
   events,
   thresholds = {},
@@ -1861,65 +2054,80 @@ function LossBudgetChart({
     const withLoss = events.map((event, index) => ({
       event,
       index,
-      spliceLoss: parseNumber3(event.spliceLoss)
+      spliceLoss: parseNumber3(event.spliceLoss),
+      absLoss: Math.abs(parseNumber3(event.spliceLoss))
     })).filter((row) => row.spliceLoss !== 0);
-    const maxLoss = Math.max(
+    const thresholdMax = Math.max(
       0,
-      ...withLoss.map((row) => Math.abs(row.spliceLoss)),
       thresholds.spliceLoss?.fail ?? 0,
       thresholds.spliceLoss?.warn ?? 0
     );
+    const { displayMax, dominantScaleActive } = resolveDisplayMax(
+      withLoss.map((row) => row.absLoss),
+      thresholdMax
+    );
     return {
-      maxLoss,
+      maxLoss: displayMax,
+      dominantScaleActive,
       rows: withLoss.map((row) => {
         const status = assessEvent(row.event, thresholds);
-        const widthPct = maxLoss > 0 ? Math.abs(row.spliceLoss) / maxLoss * 100 : 0;
+        const rawPct = displayMax > 0 ? row.absLoss / displayMax * 100 : 0;
         return {
           ...row,
           status,
-          widthPct
+          widthPct: clampPercent(rawPct),
+          overflow: rawPct > 100
         };
       })
     };
   }, [events, thresholds]);
-  const warnPct = rows.maxLoss > 0 && thresholds.spliceLoss?.warn ? thresholds.spliceLoss.warn / rows.maxLoss * 100 : null;
-  const failPct = rows.maxLoss > 0 && thresholds.spliceLoss?.fail ? thresholds.spliceLoss.fail / rows.maxLoss * 100 : null;
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("section", { className: `${LossBudgetChart_default.root} ${vertical ? LossBudgetChart_default.vertical : ""}`, "aria-label": "Loss budget chart", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: LossBudgetChart_default.chart, children: rows.rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-    "button",
-    {
-      className: `${LossBudgetChart_default.row} ${selectedEvent === row.index ? LossBudgetChart_default.selected : ""}`,
-      onClick: () => onBarClick?.(row.event, row.index),
-      type: "button",
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: LossBudgetChart_default.label, children: [
-          "#",
-          row.index + 1
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: `${LossBudgetChart_default.track} ${vertical ? LossBudgetChart_default.trackVertical : ""}`, children: [
-          warnPct !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `${LossBudgetChart_default.threshold} ${vertical ? LossBudgetChart_default.thresholdVertical : ""}`, style: vertical ? { bottom: `${warnPct}%` } : { left: `${warnPct}%` } }) : null,
-          failPct !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `${LossBudgetChart_default.threshold} ${vertical ? LossBudgetChart_default.thresholdVertical : ""}`, style: vertical ? { bottom: `${failPct}%` } : { left: `${failPct}%` } }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            "span",
-            {
-              className: `${LossBudgetChart_default.bar} ${vertical ? LossBudgetChart_default.barVertical : ""} ${LossBudgetChart_default[row.status] ?? LossBudgetChart_default.pass}`,
-              style: vertical ? { height: `${row.widthPct}%` } : { width: `${row.widthPct}%` }
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: LossBudgetChart_default.value, children: [
-          row.spliceLoss.toFixed(3),
-          " dB"
-        ] })
-      ]
-    },
-    `loss-${row.index}`
-  )) }) });
+  const warnPct = rows.maxLoss > 0 && thresholds.spliceLoss?.warn ? clampPercent(thresholds.spliceLoss.warn / rows.maxLoss * 100) : null;
+  const failPct = rows.maxLoss > 0 && thresholds.spliceLoss?.fail ? clampPercent(thresholds.spliceLoss.fail / rows.maxLoss * 100) : null;
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: `${LossBudgetChart_default.root} ${vertical ? LossBudgetChart_default.vertical : ""}`, "aria-label": "Loss budget chart", children: [
+    rows.dominantScaleActive ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("p", { className: LossBudgetChart_default.scaleHint, children: "Scaled for readability. Bars with an overflow marker exceed display scale." }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: LossBudgetChart_default.chart, children: rows.rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "button",
+      {
+        className: `${LossBudgetChart_default.row} ${selectedEvent === row.index ? LossBudgetChart_default.selected : ""}`,
+        onClick: () => onBarClick?.(row.event, row.index),
+        type: "button",
+        "aria-label": `Event ${row.index + 1}, splice loss ${row.spliceLoss.toFixed(3)} dB${row.overflow ? ", exceeds chart scale" : ""}`,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: LossBudgetChart_default.label, children: [
+            "#",
+            row.index + 1
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: `${LossBudgetChart_default.track} ${vertical ? LossBudgetChart_default.trackVertical : ""}`, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `${LossBudgetChart_default.zero} ${vertical ? LossBudgetChart_default.zeroVertical : ""}` }),
+            warnPct !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `${LossBudgetChart_default.threshold} ${LossBudgetChart_default.warnThreshold} ${vertical ? LossBudgetChart_default.thresholdVertical : ""}`, style: vertical ? { bottom: `${warnPct}%` } : { left: `${warnPct}%` } }) : null,
+            failPct !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `${LossBudgetChart_default.threshold} ${LossBudgetChart_default.failThreshold} ${vertical ? LossBudgetChart_default.thresholdVertical : ""}`, style: vertical ? { bottom: `${failPct}%` } : { left: `${failPct}%` } }) : null,
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "span",
+              {
+                className: `${LossBudgetChart_default.bar} ${vertical ? LossBudgetChart_default.barVertical : ""} ${LossBudgetChart_default[row.status] ?? LossBudgetChart_default.pass}`,
+                style: vertical ? { height: `${row.widthPct}%` } : { width: `${row.widthPct}%` }
+              }
+            ),
+            row.overflow ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `${LossBudgetChart_default.overflowCue} ${vertical ? LossBudgetChart_default.overflowCueVertical : ""}` }) : null
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: LossBudgetChart_default.value, children: [
+            row.spliceLoss.toFixed(3),
+            " dB"
+          ] })
+        ]
+      },
+      `loss-${row.index}`
+    )) })
+  ] });
 }
+
+// src/components/PrintButton.module.css
+var PrintButton_default = {};
 
 // src/components/PrintButton.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function PrintButton({ label = "Print" }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: () => window.print(), children: label });
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", className: PrintButton_default.button, onClick: () => window.print(), children: label });
 }
 
 // src/components/info/EquipmentInfoPanel.tsx

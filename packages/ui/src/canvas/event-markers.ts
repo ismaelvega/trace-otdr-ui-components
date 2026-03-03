@@ -18,13 +18,35 @@ export interface EventMarker {
   py: number;
 }
 
-const MARKER_COLORS: Record<EventCategory, string> = {
-  reflection: "#b91c1c",
-  loss: "#0f766e",
-  connector: "#1d4ed8",
-  "end-of-fiber": "#111827",
-  manual: "#a16207",
-  unknown: "#6b7280",
+interface MarkerStyle {
+  colors: Record<EventCategory, string>;
+  stemColor: string;
+  selectedStemColor: string;
+  labelColor: string;
+  mutedLabelColor: string;
+  selectedRingColor: string;
+  selectedHaloColor: string;
+  hoverRingColor: string;
+  hoverHaloColor: string;
+}
+
+const DEFAULT_MARKER_STYLE: MarkerStyle = {
+  colors: {
+    reflection: "#c3342f",
+    loss: "#0f766e",
+    connector: "#2563eb",
+    "end-of-fiber": "#111827",
+    manual: "#a16207",
+    unknown: "#64748b",
+  },
+  stemColor: "rgba(49, 82, 116, 0.36)",
+  selectedStemColor: "rgba(37, 99, 235, 0.66)",
+  labelColor: "#334e68",
+  mutedLabelColor: "#6f859e",
+  selectedRingColor: "#2563eb",
+  selectedHaloColor: "rgba(37, 99, 235, 0.28)",
+  hoverRingColor: "#0891b2",
+  hoverHaloColor: "rgba(8, 145, 178, 0.24)",
 };
 
 function parseDistance(distance: string): number {
@@ -104,30 +126,58 @@ export function drawEventMarkers(
   markers: EventMarker[],
   canvasRect: CanvasRect,
   selectedIndex: number | null = null,
+  hoveredIndex: number | null = null,
+  style: Partial<MarkerStyle> = {},
 ): void {
   if (markers.length === 0) return;
   const plotRect = getPlotRect(canvasRect);
+  const mergedStyle: MarkerStyle = {
+    ...DEFAULT_MARKER_STYLE,
+    ...style,
+    colors: {
+      ...DEFAULT_MARKER_STYLE.colors,
+      ...(style.colors ?? {}),
+    },
+  };
+  const dense = markers.length > 20;
 
   for (const marker of markers) {
     const isSelected = selectedIndex === marker.index;
-    const color = MARKER_COLORS[marker.category] ?? MARKER_COLORS.unknown;
-    const radius = 8;
+    const isHovered = hoveredIndex === marker.index;
+    const isPriority = isSelected || isHovered;
+    const color = mergedStyle.colors[marker.category] ?? mergedStyle.colors.unknown;
+    const radius = isSelected ? 8 : isHovered ? 7.5 : 7;
 
     ctx.save();
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
-    ctx.lineWidth = isSelected ? 3 : 2;
-    if (isSelected) {
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = color;
-    }
+    ctx.lineWidth = isPriority ? 2.4 : 1.6;
 
-    ctx.setLineDash([4, 4]);
+    ctx.globalAlpha = isPriority ? 1 : 0.86;
+    ctx.setLineDash(isPriority ? [4, 3] : [2, 4]);
     ctx.beginPath();
     ctx.moveTo(Math.round(marker.px) + 0.5, marker.py);
     ctx.lineTo(Math.round(marker.px) + 0.5, plotRect.bottom);
+    ctx.strokeStyle = isPriority ? mergedStyle.selectedStemColor : mergedStyle.stemColor;
+    ctx.lineWidth = isPriority ? 1.4 : 1;
     ctx.stroke();
     ctx.setLineDash([]);
+
+    if (isSelected || isHovered) {
+      const haloColor = isSelected ? mergedStyle.selectedHaloColor : mergedStyle.hoverHaloColor;
+      const ringColor = isSelected ? mergedStyle.selectedRingColor : mergedStyle.hoverRingColor;
+      ctx.beginPath();
+      ctx.fillStyle = haloColor;
+      ctx.arc(marker.px, marker.py, radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = 1.2;
+      ctx.arc(marker.px, marker.py, radius + 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+    }
 
     drawMarkerShape(ctx, marker.category, marker.px, marker.py, radius);
     if (marker.category === "end-of-fiber") {
@@ -137,11 +187,15 @@ export function drawEventMarkers(
       ctx.stroke();
     }
 
-    const label = `${marker.index + 1}`;
-    ctx.font = "11px sans-serif";
-    const labelWidth = ctx.measureText(label).width;
-    ctx.fillStyle = "#111827";
-    ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
+    const shouldShowLabel = !dense || isPriority || marker.index % 2 === 0;
+    if (shouldShowLabel) {
+      const label = `${marker.index + 1}`;
+      ctx.font = isPriority ? "600 11px sans-serif" : "10px sans-serif";
+      const labelWidth = ctx.measureText(label).width;
+      ctx.fillStyle = isPriority ? mergedStyle.labelColor : mergedStyle.mutedLabelColor;
+      ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
+    }
+
     ctx.restore();
   }
 }

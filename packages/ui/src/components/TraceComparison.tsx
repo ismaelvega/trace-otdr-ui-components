@@ -89,8 +89,8 @@ export function TraceComparison({ traces, mode = "overlay", syncZoom = true }: T
       <section className={styles.root}>
         <div className={styles.sideBySide}>
           {normalized.map((item) => (
-            <article key={item.label}>
-              <h3>{item.label}</h3>
+            <article key={item.label} className={styles.panel}>
+              <h3 className={styles.title}>{item.label}</h3>
               <TraceSummary result={item.data} />
               <TraceChart
                 trace={item.data.trace}
@@ -114,7 +114,10 @@ export function TraceComparison({ traces, mode = "overlay", syncZoom = true }: T
 
     return (
       <section className={styles.root}>
-        <TraceChart trace={difference} events={[]} />
+        <article className={styles.panel}>
+          <h3 className={styles.title}>Difference (Trace 1 - Trace 2)</h3>
+          <TraceChart trace={difference} events={[]} />
+        </article>
       </section>
     );
   }
@@ -132,7 +135,12 @@ export function TraceComparison({ traces, mode = "overlay", syncZoom = true }: T
           </span>
         ))}
       </div>
-      {primary ? <TraceChart trace={primary.data.trace} events={primary.data.keyEvents.events} overlays={overlays} /> : null}
+      {primary ? (
+        <article className={styles.panel}>
+          <h3 className={styles.title}>Overlay</h3>
+          <TraceChart trace={primary.data.trace} events={primary.data.keyEvents.events} overlays={overlays} />
+        </article>
+      ) : null}
     </section>
   );
 }

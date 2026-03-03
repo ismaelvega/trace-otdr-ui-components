@@ -1,18 +1,10 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { parseSor } from "sor-reader";
 
 import { TraceComparison } from "../src/components/TraceComparison.js";
-
-function loadFixture(name: string) {
-  const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name)));
-  return parseSor(bytes, name);
-}
+import { createMockSorData, createMockSorDataVariant } from "./mock-sor-data.js";
 
 describe("TraceComparison", () => {
   beforeEach(() => {
@@ -43,8 +35,8 @@ describe("TraceComparison", () => {
   });
 
   it("renders legend in overlay mode", () => {
-    const a = loadFixture("demo_ab.sor");
-    const b = loadFixture("sample1310_lowDR.sor");
+    const a = createMockSorData();
+    const b = createMockSorDataVariant();
 
     render(
       <TraceComparison
@@ -61,8 +53,8 @@ describe("TraceComparison", () => {
   });
 
   it("renders side-by-side charts with syncZoom enabled", () => {
-    const a = loadFixture("demo_ab.sor");
-    const b = loadFixture("sample1310_lowDR.sor");
+    const a = createMockSorData();
+    const b = createMockSorDataVariant();
 
     const { container } = render(
       <TraceComparison
@@ -79,8 +71,8 @@ describe("TraceComparison", () => {
   });
 
   it("renders difference mode", () => {
-    const a = loadFixture("demo_ab.sor");
-    const b = loadFixture("sample1310_lowDR.sor");
+    const a = createMockSorData();
+    const b = createMockSorDataVariant();
 
     const { container } = render(
       <TraceComparison

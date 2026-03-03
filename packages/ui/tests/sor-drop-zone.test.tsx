@@ -1,16 +1,19 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SorDropZone } from "../src/components/SorDropZone.js";
 
+vi.mock("sor-reader/browser", async () => {
+  const helpers = await import("./mock-sor-data.js");
+  return {
+    parseSor: vi.fn(() => helpers.createMockSorResultRawV1()),
+  };
+});
+
 function loadFile(name: string): File {
-  const bytes = readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name));
-  return new File([bytes], name, { type: "application/octet-stream" });
+  return new File([new Uint8Array([1, 2, 3, 4])], name, { type: "application/octet-stream" });
 }
 
 describe("SorDropZone", () => {

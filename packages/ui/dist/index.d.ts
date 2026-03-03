@@ -155,6 +155,7 @@ declare function drawCrosshair(ctx: CanvasRenderingContext2D, state: CrosshairSt
     lineColor?: string;
     textColor?: string;
     labelBackground?: string;
+    labelBorder?: string;
 }): void;
 
 interface RenderContext {
@@ -178,6 +179,7 @@ interface RenderContext {
         lineColor?: string;
         textColor?: string;
         labelBackground?: string;
+        labelBorder?: string;
     };
 }
 interface RenderScheduler {
@@ -210,8 +212,19 @@ interface EventMarker {
     px: number;
     py: number;
 }
+interface MarkerStyle {
+    colors: Record<EventCategory, string>;
+    stemColor: string;
+    selectedStemColor: string;
+    labelColor: string;
+    mutedLabelColor: string;
+    selectedRingColor: string;
+    selectedHaloColor: string;
+    hoverRingColor: string;
+    hoverHaloColor: string;
+}
 declare function computeEventMarkers(events: KeyEvent[], trace: TracePoint[], viewport: ViewportRange, canvasRect: CanvasRect): EventMarker[];
-declare function drawEventMarkers(ctx: CanvasRenderingContext2D, markers: EventMarker[], canvasRect: CanvasRect, selectedIndex?: number | null): void;
+declare function drawEventMarkers(ctx: CanvasRenderingContext2D, markers: EventMarker[], canvasRect: CanvasRect, selectedIndex?: number | null, hoveredIndex?: number | null, style?: Partial<MarkerStyle>): void;
 declare function hitTestEventMarkers(markers: EventMarker[], px: number, py: number, hitRadius?: number): number | null;
 declare function formatEventTooltip(marker: EventMarker, unit: DistanceUnit): string;
 

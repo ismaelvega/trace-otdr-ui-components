@@ -1,38 +1,66 @@
 .root {
   position: relative;
   border: 1px solid var(--otdr-border, #cbd5e1);
-  border-radius: var(--otdr-radius-lg, 10px);
-  padding: 14px;
-  background: var(--otdr-surface, #f8fafc);
+  border-radius: var(--otdr-radius-lg, 14px);
+  padding: var(--otdr-panel-padding-lg, 16px);
+  background: var(--otdr-panel-strong, #edf4fb);
+  box-shadow: var(--otdr-shadow-1, 0 1px 2px rgba(15, 42, 67, 0.08));
 }
 
 .badge {
   position: absolute;
-  right: 14px;
-  top: 14px;
+  right: var(--otdr-panel-padding-lg, 16px);
+  top: var(--otdr-panel-padding-lg, 16px);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  gap: var(--otdr-card-gap, 10px);
+  min-width: 0;
 }
 
 .card {
   border: 1px solid var(--otdr-border-subtle, #e2e8f0);
-  border-radius: var(--otdr-radius-md, 8px);
+  border-radius: var(--otdr-radius-md, 10px);
   background: var(--otdr-panel, #ffffff);
-  padding: 10px;
+  padding: var(--otdr-space-3, 12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--otdr-text-strong, #0f172a);
+  font-size: clamp(1rem, 0.85rem + 0.42vw, 1.28rem);
+  font-weight: var(--otdr-weight-bold, 700);
+  color: var(--otdr-numeric-color, #0b1f33);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .label {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: var(--otdr-space-1, 4px);
+  font-size: var(--otdr-font-size-xs, 12px);
   color: var(--otdr-text-muted, #475569);
+  font-weight: var(--otdr-weight-medium, 500);
+  line-height: var(--otdr-line-height-tight, 1.2);
+}
+
+@media (max-width: 768px) {
+  .root {
+    padding: var(--otdr-panel-padding, 12px);
+  }
+
+  .badge {
+    right: var(--otdr-panel-padding, 12px);
+    top: var(--otdr-panel-padding, 12px);
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

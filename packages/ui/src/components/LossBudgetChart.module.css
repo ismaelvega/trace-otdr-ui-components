@@ -1,14 +1,22 @@
 .root {
   border: 1px solid var(--otdr-border, #cbd5e1);
-  border-radius: var(--otdr-radius-lg, 10px);
+  border-radius: var(--otdr-radius-lg, 14px);
   background: var(--otdr-panel, #ffffff);
-  padding: 10px;
+  padding: var(--otdr-panel-padding, 12px);
+  box-shadow: var(--otdr-shadow-1, 0 1px 2px rgba(15, 42, 67, 0.08));
+  min-width: 0;
+}
+
+.scaleHint {
+  margin: 0 0 var(--otdr-space-2, 8px);
+  font-size: var(--otdr-font-size-xs, 12px);
+  color: var(--otdr-text-muted, #475569);
 }
 
 .chart {
   position: relative;
   display: grid;
-  gap: 6px;
+  gap: var(--otdr-space-2, 8px);
 }
 
 .row {
@@ -19,16 +27,28 @@
   display: grid;
   grid-template-columns: 70px 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: var(--otdr-space-3, 12px);
   text-align: left;
+  border-radius: var(--otdr-radius-sm, 6px);
+  transition: background-color 120ms ease-in-out;
+}
+
+.row:hover {
+  background: var(--otdr-interactive-bg-hover, #e9f3ff);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--otdr-interactive-focus-ring, #2563eb);
+  outline-offset: 1px;
+  box-shadow: var(--otdr-interactive-focus-shadow, 0 0 0 3px rgba(37, 99, 235, 0.28));
 }
 
 .track {
   position: relative;
   height: 18px;
-  background: var(--otdr-surface, #f8fafc);
+  background: var(--otdr-panel-subtle, #f7fbff);
   border: 1px solid var(--otdr-border-subtle, #e2e8f0);
-  border-radius: 6px;
+  border-radius: var(--otdr-radius-sm, 6px);
   overflow: hidden;
 }
 
@@ -36,7 +56,8 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 0;
-  border-radius: 4px;
+  border-radius: calc(var(--otdr-radius-sm, 6px) - 2px);
+  transition: width 140ms ease-in-out, height 140ms ease-in-out;
 }
 
 .pass { background: var(--otdr-status-pass-border, #22c55e); }
@@ -44,7 +65,8 @@
 .fail { background: var(--otdr-status-fail-border, #ef4444); }
 
 .selected {
-  outline: 2px solid #1d4ed8;
+  outline: 2px solid var(--otdr-interactive-selected-border, #2563eb);
+  background: var(--otdr-interactive-selected-bg, #dcecff);
 }
 
 .threshold {
@@ -52,34 +74,75 @@
   top: 0;
   bottom: 0;
   width: 0;
-  border-left: 1px dashed #64748b;
+  border-left: 1px dashed var(--otdr-border-strong, #95aec8);
+  pointer-events: none;
+}
+
+.warnThreshold {
+  border-left-color: var(--otdr-status-warn-border, #f59e0b);
+}
+
+.failThreshold {
+  border-left-color: var(--otdr-status-fail-border, #ef4444);
+}
+
+.zero {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--otdr-border-strong, #95aec8);
   pointer-events: none;
 }
 
 .label {
   white-space: nowrap;
+  color: var(--otdr-text-muted, #475569);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .value {
   white-space: nowrap;
+  color: var(--otdr-numeric-color, #0b1f33);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-family: var(--otdr-font-family-numeric, "IBM Plex Mono", monospace);
+}
+
+.overflowCue {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  bottom: 2px;
+  width: 8px;
+  border-radius: 0 var(--otdr-radius-sm, 6px) var(--otdr-radius-sm, 6px) 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--otdr-panel, #ffffff) 25%, transparent),
+    color-mix(in srgb, var(--otdr-panel, #ffffff) 25%, transparent) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  border-left: 1px solid color-mix(in srgb, var(--otdr-text-strong, #0f172a) 35%, transparent);
 }
 
 .vertical .chart {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: var(--otdr-space-3, 12px);
 }
 
 .vertical .row {
   grid-template-columns: 1fr;
-  gap: 6px;
+  gap: var(--otdr-space-2, 8px);
   justify-items: center;
   text-align: center;
+  padding: var(--otdr-space-2, 8px) 0;
 }
 
 .trackVertical {
-  width: 28px;
-  height: 120px;
+  width: 30px;
+  height: 128px;
 }
 
 .barVertical {
@@ -95,5 +158,43 @@
   bottom: 0;
   width: auto;
   border-left: 0;
-  border-bottom: 1px dashed #64748b;
+  border-bottom: 1px dashed var(--otdr-border-strong, #95aec8);
+}
+
+.zeroVertical {
+  left: 0;
+  right: 0;
+  width: auto;
+  top: auto;
+  bottom: 0;
+  height: 1px;
+}
+
+.overflowCueVertical {
+  left: 2px;
+  right: 2px;
+  top: 2px;
+  width: auto;
+  height: 8px;
+  border-left: 0;
+  border-top: 1px solid color-mix(in srgb, var(--otdr-text-strong, #0f172a) 35%, transparent);
+  border-radius: var(--otdr-radius-sm, 6px) var(--otdr-radius-sm, 6px) 0 0;
+}
+
+@media (max-width: 768px) {
+  .row {
+    grid-template-columns: 56px 1fr auto;
+    gap: var(--otdr-space-2, 8px);
+  }
+
+  .value {
+    font-size: var(--otdr-font-size-xs, 12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .bar {
+    transition: none;
+  }
 }

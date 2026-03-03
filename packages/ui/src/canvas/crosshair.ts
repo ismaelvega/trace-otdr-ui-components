@@ -77,12 +77,14 @@ export function drawCrosshair(
     lineColor?: string;
     textColor?: string;
     labelBackground?: string;
+    labelBorder?: string;
   } = {},
 ): void {
   const plotRect = getPlotRect(canvasRect);
   const lineColor = style.lineColor ?? "#64748b";
   const textColor = style.textColor ?? "#0f172a";
   const labelBackground = style.labelBackground ?? "rgba(248, 250, 252, 0.92)";
+  const labelBorder = style.labelBorder ?? "rgba(15, 23, 42, 0.15)";
 
   ctx.save();
   ctx.strokeStyle = lineColor;
@@ -108,7 +110,7 @@ export function drawCrosshair(
 
   ctx.fillStyle = labelBackground;
   ctx.fillRect(x, y, labelWidth + paddingX * 2, labelHeight);
-  ctx.strokeStyle = "rgba(15, 23, 42, 0.15)";
+  ctx.strokeStyle = labelBorder;
   ctx.strokeRect(x, y, labelWidth + paddingX * 2, labelHeight);
   ctx.fillStyle = textColor;
   ctx.fillText(state.label, x + paddingX, y + labelHeight - paddingY);

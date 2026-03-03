@@ -1,18 +1,10 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { parseSor } from "sor-reader";
 
 import { TraceReport } from "../src/components/TraceReport/TraceReport.js";
-
-function loadFixture(name: string) {
-  const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name)));
-  return parseSor(bytes, name);
-}
+import { createMockSorData } from "./mock-sor-data.js";
 
 describe("TraceReport", () => {
   beforeEach(() => {
@@ -35,7 +27,7 @@ describe("TraceReport", () => {
   });
 
   it("renders report sections", () => {
-    const result = loadFixture("demo_ab.sor");
+    const result = createMockSorData();
 
     render(<TraceReport result={result} companyName="Acme Fiber" />);
 

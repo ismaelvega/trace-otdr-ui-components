@@ -2,13 +2,38 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --otdr-bg: #0f172a;
-  --otdr-surface: #111827;
-  --otdr-panel: #1f2937;
-  --otdr-border: #334155;
-  --otdr-border-subtle: #374151;
-  --otdr-text-strong: #f8fafc;
-  --otdr-text-muted: #cbd5e1;
+  --otdr-bg: #081326;
+  --otdr-surface: #0d1b31;
+  --otdr-surface-elevated: #10223d;
+  --otdr-panel: #132741;
+  --otdr-panel-strong: #0f2038;
+  --otdr-panel-subtle: #1b304b;
+  --otdr-section-header-bg: #142840;
+  --otdr-section-header-border: #2f4e71;
+  --otdr-section-header-fg: #e2efff;
+  --otdr-section-header-muted: #a8c4e6;
+  --otdr-border: #2f4a69;
+  --otdr-border-strong: #45658b;
+  --otdr-border-subtle: #27415e;
+  --otdr-divider: #28435f;
+  --otdr-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --otdr-shadow-2: 0 10px 22px rgba(0, 0, 0, 0.38);
+  --otdr-text-strong: #f1f7ff;
+  --otdr-text: #dae8fb;
+  --otdr-text-muted: #adc4df;
+  --otdr-text-subtle: #89a6c7;
+  --otdr-text-emphasis: #e4f1ff;
+  --otdr-numeric-color: #f1f7ff;
+  --otdr-numeric-muted: #c6ddf9;
+
+  --otdr-interactive-highlight: #38bdf8;
+  --otdr-interactive-highlight-soft: #12324d;
+  --otdr-interactive-bg-hover: #1a3250;
+  --otdr-interactive-bg-active: #22426a;
+  --otdr-interactive-selected-bg: #254772;
+  --otdr-interactive-selected-border: #60a5fa;
+  --otdr-interactive-focus-ring: #60a5fa;
+  --otdr-interactive-focus-shadow: 0 0 0 3px rgba(96, 165, 250, 0.35);
 
   --otdr-status-pass-bg: #052e16;
   --otdr-status-pass-border: #16a34a;
@@ -20,10 +45,39 @@
   --otdr-status-fail-border: #dc2626;
   --otdr-status-fail-fg: #fecaca;
 
-  --otdr-chart-bg: #0b1220;
+  --otdr-status-neutral-bg: #1d334d;
+  --otdr-status-neutral-border: #5d7fa6;
+  --otdr-status-neutral-fg: #d7e9ff;
+
+  --otdr-chart-bg: #071225;
   --otdr-trace-primary: #14b8a6;
-  --otdr-axis-color: #94a3b8;
-  --otdr-axis-label: #e2e8f0;
-  --otdr-grid-color: #334155;
-  --otdr-crosshair-color: #94a3b8;
+  --otdr-axis-color: #9eb9d7;
+  --otdr-axis-label: #e6f0ff;
+  --otdr-grid-color: #2b4666;
+  --otdr-grid-color-subtle: #1d3552;
+  --otdr-crosshair-color: #b0cae7;
+  --otdr-crosshair-label-bg: rgba(10, 24, 44, 0.94);
+  --otdr-crosshair-label-fg: #e8f3ff;
+  --otdr-tooltip-bg: rgba(4, 12, 24, 0.97);
+  --otdr-tooltip-fg: #e8f3ff;
+  --otdr-tooltip-border: #355882;
+  --otdr-marker-reflection: #f87171;
+  --otdr-marker-loss: #2dd4bf;
+  --otdr-marker-connector: #60a5fa;
+  --otdr-marker-end: #f1f5f9;
+  --otdr-marker-manual: #f59e0b;
+  --otdr-marker-unknown: #9ca3af;
+  --otdr-marker-stem: rgba(160, 188, 218, 0.35);
+  --otdr-marker-stem-selected: rgba(96, 165, 250, 0.78);
+  --otdr-marker-label: #d9e9ff;
+  --otdr-marker-label-muted: #8fabca;
+  --otdr-marker-selected-ring: #60a5fa;
+  --otdr-marker-selected-halo: rgba(96, 165, 250, 0.34);
+  --otdr-marker-hover-ring: #22d3ee;
+  --otdr-marker-hover-halo: rgba(34, 211, 238, 0.28);
+
+  --otdr-row-alt: #152a46;
+  --otdr-row-hover: #1c3659;
+  --otdr-row-selected: #264a79;
+  --otdr-row-selected-border: #60a5fa;
 }

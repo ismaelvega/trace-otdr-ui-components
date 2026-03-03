@@ -5,8 +5,15 @@
   font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
   background: var(--otdr-chart-bg, #ffffff);
   border: 1px solid var(--otdr-border, #cbd5e1);
-  border-radius: var(--otdr-radius-lg, 10px);
+  border-radius: var(--otdr-radius-lg, 14px);
   overflow: hidden;
+  box-shadow: var(--otdr-shadow-1, 0 1px 2px rgba(15, 42, 67, 0.08));
+}
+
+.root:focus-visible {
+  outline: 2px solid var(--otdr-interactive-focus-ring, #2563eb);
+  outline-offset: 2px;
+  box-shadow: var(--otdr-interactive-focus-shadow, 0 0 0 3px rgba(37, 99, 235, 0.28));
 }
 
 .canvas {
@@ -20,16 +27,20 @@
 .tooltip {
   position: absolute;
   z-index: 10;
-  max-width: 280px;
-  padding: 8px 10px;
-  border: 1px solid rgba(15, 23, 42, 0.15);
-  border-radius: 6px;
-  background: rgba(248, 250, 252, 0.95);
-  color: #0f172a;
-  font: 12px/1.4 sans-serif;
+  max-width: min(320px, calc(100% - 16px));
+  padding: var(--otdr-space-2, 8px) var(--otdr-space-3, 12px);
+  border: 1px solid var(--otdr-tooltip-border-runtime, var(--otdr-tooltip-border, #1f3b5b));
+  border-radius: var(--otdr-radius-sm, 6px);
+  background: var(--otdr-tooltip-bg-runtime, var(--otdr-tooltip-bg, rgba(7, 26, 45, 0.96)));
+  color: var(--otdr-tooltip-fg-runtime, var(--otdr-tooltip-fg, #eff6ff));
+  font-size: var(--otdr-font-size-xs, 12px);
+  line-height: var(--otdr-line-height-normal, 1.45);
   pointer-events: none;
   white-space: pre-line;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+  box-shadow: var(--otdr-shadow-2, 0 8px 20px rgba(15, 42, 67, 0.12));
+  transition: opacity 100ms ease-in-out, transform 100ms ease-in-out;
+  transform-origin: top left;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .liveRegion {
@@ -50,8 +61,9 @@
   display: grid;
   place-items: center;
   color: var(--otdr-text-muted, #475569);
-  font-size: 14px;
+  font-size: var(--otdr-font-size-md, 14px);
   pointer-events: none;
+  background: color-mix(in srgb, var(--otdr-chart-bg, #ffffff) 88%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

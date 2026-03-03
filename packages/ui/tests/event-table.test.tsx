@@ -1,22 +1,14 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { parseSor } from "sor-reader";
 
 import { EventTable } from "../src/components/EventTable.js";
-
-function loadFixture(name: string) {
-  const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name)));
-  return parseSor(bytes, name);
-}
+import { createMockSorData } from "./mock-sor-data.js";
 
 describe("EventTable", () => {
   it("supports sorting and row selection callbacks", () => {
-    const result = loadFixture("demo_ab.sor");
+    const result = createMockSorData();
     const onEventSelect = vi.fn();
 
     render(<EventTable result={result} onEventSelect={onEventSelect} />);

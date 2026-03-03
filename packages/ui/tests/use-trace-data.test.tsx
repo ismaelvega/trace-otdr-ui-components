@@ -1,20 +1,17 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { useTraceData } from "../src/hooks/useTraceData.js";
 
-function loadBytes(name: string): Uint8Array {
-  return new Uint8Array(readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name)));
-}
+vi.mock("sor-reader/browser", () => ({
+  parseSor: vi.fn(() => ({ filename: "demo_ab.sor" })),
+}));
 
 describe("useTraceData", () => {
   it("parses bytes source and returns result", async () => {
-    const bytes = loadBytes("demo_ab.sor");
+    const bytes = new Uint8Array([1, 2, 3, 4]);
 
     const { result } = renderHook(() => useTraceData(bytes));
 
@@ -24,5 +21,6 @@ describe("useTraceData", () => {
     });
 
     expect(result.current.error).toBeNull();
+    expect(result.current.result?.filename).toBe("demo_ab.sor");
   });
 });

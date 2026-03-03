@@ -1,27 +1,46 @@
 .root {
-  border: 2px dashed var(--otdr-border, #94a3b8);
-  border-radius: var(--otdr-radius-lg, 10px);
-  padding: 18px;
+  border: 2px dashed var(--otdr-border-strong, #95aec8);
+  border-radius: var(--otdr-radius-lg, 14px);
+  padding: var(--otdr-space-6, 24px);
   text-align: center;
-  background: var(--otdr-surface, #f8fafc);
+  background: var(--otdr-panel-subtle, #f7fbff);
   color: var(--otdr-text-muted, #475569);
   cursor: pointer;
+  transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
 }
 
 .hover {
-  border-color: #1d4ed8;
-  background: #dbeafe;
+  border-color: var(--otdr-interactive-selected-border, #2563eb);
+  background: var(--otdr-interactive-bg-hover, #e9f3ff);
 }
 
 .loading {
-  border-color: #0f766e;
+  border-color: var(--otdr-trace-primary, #0f766e);
 }
 
 .error {
-  border-color: #b91c1c;
-  color: #991b1b;
+  border-color: var(--otdr-status-fail-border, #ef4444);
+  color: var(--otdr-status-fail-fg, #991b1b);
+}
+
+.root:focus-visible {
+  outline: 2px solid var(--otdr-interactive-focus-ring, #2563eb);
+  outline-offset: 2px;
+  box-shadow: var(--otdr-interactive-focus-shadow, 0 0 0 3px rgba(37, 99, 235, 0.28));
 }
 
 .input {
   display: none;
+}
+
+@media (max-width: 768px) {
+  .root {
+    padding: var(--otdr-space-4, 16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    transition: none;
+  }
 }

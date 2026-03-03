@@ -1,0 +1,124 @@
+.demoShell {
+  min-height: 100vh;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+  font-family: var(--otdr-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+  color: var(--otdr-text-strong, #0f172a);
+  background:
+    radial-gradient(circle at 8% -10%, color-mix(in srgb, var(--otdr-interactive-highlight-soft, #dff2ff) 70%, transparent), transparent 34%),
+    radial-gradient(circle at 100% 10%, color-mix(in srgb, var(--otdr-panel-subtle, #f7fbff) 84%, transparent), transparent 30%),
+    linear-gradient(180deg, var(--otdr-bg, #eaf0f6), var(--otdr-surface, #f4f8fc));
+}
+
+.demoHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.demoTitle {
+  margin: 0;
+  font-size: clamp(1.4rem, 1.25rem + 0.9vw, 2rem);
+  line-height: 1.1;
+  color: var(--otdr-text-emphasis, #0f2942);
+}
+
+.demoSubtitle {
+  margin: 0;
+  color: var(--otdr-text-muted, #475569);
+  font-size: var(--otdr-font-size-sm, 13px);
+  max-width: 860px;
+}
+
+.demoControls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--otdr-border, #b8cbe0);
+  border-radius: var(--otdr-radius-lg, 14px);
+  background: var(--otdr-panel, #ffffff);
+  box-shadow: var(--otdr-shadow-1, 0 1px 2px rgba(15, 42, 67, 0.08));
+}
+
+.demoField {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.demoField > span {
+  font-size: var(--otdr-font-size-xs, 12px);
+  color: var(--otdr-text-muted, #475569);
+  font-weight: var(--otdr-weight-medium, 500);
+}
+
+.demoField :is(input, select) {
+  width: 100%;
+  border: 1px solid var(--otdr-border-subtle, #d8e4f1);
+  border-radius: var(--otdr-radius-sm, 6px);
+  min-height: 36px;
+  padding: 7px 10px;
+  background: var(--otdr-panel-subtle, #f7fbff);
+  color: var(--otdr-text-strong, #0f172a);
+  font: inherit;
+}
+
+.demoField :is(input, select):focus-visible {
+  outline: 2px solid var(--otdr-interactive-focus-ring, #2563eb);
+  outline-offset: 1px;
+}
+
+.demoPanel {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.demoGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.demoError {
+  margin: 0;
+  color: var(--otdr-status-fail-fg, #991b1b);
+  font-weight: var(--otdr-weight-semibold, 600);
+}
+
+.demoHint {
+  margin: 0;
+  color: var(--otdr-text-muted, #475569);
+  font-size: var(--otdr-font-size-sm, 13px);
+}
+
+.demoIframe {
+  width: 100%;
+  min-height: 420px;
+  border: 1px solid var(--otdr-border, #b8cbe0);
+  border-radius: var(--otdr-radius-md, 10px);
+  background: var(--otdr-panel, #ffffff);
+}
+
+@media (max-width: 1024px) {
+  .demoControls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .demoShell {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .demoControls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demoField :is(input, select) {
+    transition: none;
+  }
+}

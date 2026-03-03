@@ -29,6 +29,7 @@ export interface RenderContext {
     lineColor?: string;
     textColor?: string;
     labelBackground?: string;
+    labelBorder?: string;
   };
 }
 

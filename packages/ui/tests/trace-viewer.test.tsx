@@ -1,18 +1,10 @@
 /** @vitest-environment jsdom */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { parseSor } from "sor-reader";
 
 import { TraceViewer } from "../src/components/TraceViewer/TraceViewer.js";
-
-function loadFixture(name: string) {
-  const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "../../sor-reader/tests/fixtures", name)));
-  return parseSor(bytes, name);
-}
+import { createMockSorData } from "./mock-sor-data.js";
 
 function createCanvasContextMock(): CanvasRenderingContext2D {
   return {
@@ -52,7 +44,7 @@ describe("TraceViewer", () => {
   });
 
   it("renders composed sections and supports event selection callback", () => {
-    const result = loadFixture("demo_ab.sor");
+    const result = createMockSorData();
     const onEventSelect = vi.fn();
 
     render(<TraceViewer result={result} onEventSelect={onEventSelect} />);

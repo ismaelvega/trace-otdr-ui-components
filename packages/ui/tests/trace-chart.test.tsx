@@ -17,6 +17,8 @@ type CanvasContextMock = {
   fillText: () => void;
   fillRect: () => void;
   strokeRect: () => void;
+  rect: () => void;
+  clip: () => void;
   save: () => void;
   restore: () => void;
   translate: () => void;
@@ -44,6 +46,8 @@ function createCanvasContextMock(): CanvasContextMock {
     fillText: () => undefined,
     fillRect: () => undefined,
     strokeRect: () => undefined,
+    rect: () => undefined,
+    clip: () => undefined,
     save: () => undefined,
     restore: () => undefined,
     translate: () => undefined,

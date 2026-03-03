@@ -64,4 +64,26 @@ describe("event markers", () => {
     expect(tooltip).toContain("Event #1");
     expect(tooltip).toContain("Distance:");
   });
+
+  it("excludes markers outside the visible plot range", () => {
+    const markers = computeEventMarkers(
+      [
+        ...events,
+        {
+          type: "1F9999LS {manual} reflection",
+          distance: "-10.000",
+          slope: "0.000",
+          spliceLoss: "0.100",
+          reflLoss: "-42.000",
+          comments: "",
+        },
+      ],
+      trace,
+      { xMin: 0, xMax: 30, yMin: -45, yMax: -25 },
+      { width: 800, height: 400 },
+    );
+
+    expect(markers).toHaveLength(2);
+    expect(markers.some((marker) => Number.parseFloat(marker.event.distance) < 0)).toBe(false);
+  });
 });

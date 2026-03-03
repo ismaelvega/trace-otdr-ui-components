@@ -174,10 +174,11 @@ export function drawYAxis(
     ctx.fillText(label, plotRect.left - labelWidth - 10, axisY + 4);
   }
 
-  ctx.translate(20, plotRect.top + plotRect.height / 2);
+  ctx.translate(16, plotRect.top + plotRect.height / 2);
   ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
   const title = "Power (dB)";
-  const titleWidth = ctx.measureText(title).width;
-  ctx.fillText(title, -titleWidth / 2, 0);
+  ctx.fillText(title, 0, 0);
   ctx.restore();
 }

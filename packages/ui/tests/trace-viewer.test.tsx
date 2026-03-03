@@ -19,6 +19,8 @@ function createCanvasContextMock(): CanvasRenderingContext2D {
     fillText: () => undefined,
     fillRect: () => undefined,
     strokeRect: () => undefined,
+    rect: () => undefined,
+    clip: () => undefined,
     save: () => undefined,
     restore: () => undefined,
     translate: () => undefined,

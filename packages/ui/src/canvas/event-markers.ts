@@ -93,6 +93,7 @@ export function computeEventMarkers(
 ): EventMarker[] {
   if (events.length === 0 || trace.length === 0) return [];
 
+  const plotRect = getPlotRect(canvasRect);
   const markers: EventMarker[] = [];
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
@@ -107,6 +108,15 @@ export function computeEventMarkers(
     if (!tracePoint) continue;
 
     const position = dataToPixel(distance, tracePoint.power, viewport, canvasRect);
+    if (
+      position.px < plotRect.left ||
+      position.px > plotRect.right ||
+      position.py < plotRect.top ||
+      position.py > plotRect.bottom
+    ) {
+      continue;
+    }
+
     markers.push({
       index,
       event,
@@ -140,6 +150,11 @@ export function drawEventMarkers(
     },
   };
   const dense = markers.length > 20;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+  ctx.clip();
 
   for (const marker of markers) {
     const isSelected = selectedIndex === marker.index;
@@ -187,17 +202,26 @@ export function drawEventMarkers(
       ctx.stroke();
     }
 
-    const shouldShowLabel = !dense || isPriority || marker.index % 2 === 0;
-    if (shouldShowLabel) {
-      const label = `${marker.index + 1}`;
-      ctx.font = isPriority ? "600 11px sans-serif" : "10px sans-serif";
-      const labelWidth = ctx.measureText(label).width;
-      ctx.fillStyle = isPriority ? mergedStyle.labelColor : mergedStyle.mutedLabelColor;
-      ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
-    }
-
     ctx.restore();
   }
+
+  ctx.restore();
+
+  ctx.save();
+  for (const marker of markers) {
+    const isSelected = selectedIndex === marker.index;
+    const isHovered = hoveredIndex === marker.index;
+    const isPriority = isSelected || isHovered;
+    const shouldShowLabel = !dense || isPriority || marker.index % 2 === 0;
+    if (!shouldShowLabel) continue;
+
+    const label = `${marker.index + 1}`;
+    ctx.font = isPriority ? "600 11px sans-serif" : "10px sans-serif";
+    const labelWidth = ctx.measureText(label).width;
+    ctx.fillStyle = isPriority ? mergedStyle.labelColor : mergedStyle.mutedLabelColor;
+    ctx.fillText(label, marker.px - labelWidth / 2, marker.py - 12);
+  }
+  ctx.restore();
 }
 
 export function hitTestEventMarkers(markers: EventMarker[], px: number, py: number, hitRadius = 12): number | null {

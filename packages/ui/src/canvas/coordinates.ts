@@ -20,7 +20,7 @@ export const MARGIN = {
   top: 20,
   right: 20,
   bottom: 50,
-  left: 70,
+  left: 88,
 } as const;
 
 const DEFAULT_VIEWPORT: ViewportRange = {
